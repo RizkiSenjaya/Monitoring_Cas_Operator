@@ -96,12 +96,16 @@
                 </div>
             </div>
 
+            <!-- Error Message Banner -->
+            <div id="auth-error-box" class="hidden mb-4 p-3 rounded-lg bg-rose-500/20 border border-rose-500/40 text-xs text-rose-300 leading-relaxed">
+            </div>
+
             <!-- Tabs: Login / Sign Up -->
             <div class="flex border-b border-slate-800 mb-6">
-                <button id="tab-btn-login" class="flex-1 pb-2.5 text-sm font-semibold text-cyan-400 border-b-2 border-cyan-400">
+                <button id="tab-btn-login" class="flex-1 pb-2.5 text-sm font-semibold text-cyan-400 border-b-2 border-cyan-400 transition-all">
                     Masuk (Login)
                 </button>
-                <button id="tab-btn-signup" class="flex-1 pb-2.5 text-sm font-semibold text-slate-400 hover:text-slate-200">
+                <button id="tab-btn-signup" class="flex-1 pb-2.5 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all">
                     Daftar (Sign Up)
                 </button>
             </div>
@@ -109,13 +113,13 @@
             <!-- Login Form -->
             <form id="form-login" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Email Operator</label>
-                    <input type="email" id="login-email" value="operator@rpm.internal" required
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Email Akun</label>
+                    <input type="email" id="login-email" placeholder="nama@email.com" required
                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 mb-1.5">Kata Sandi</label>
-                    <input type="password" id="login-password" value="operator123" required
+                    <input type="password" id="login-password" placeholder="Masukkan kata sandi akun" required
                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400">
                 </div>
                 <div class="flex items-center justify-between text-xs">
@@ -123,10 +127,10 @@
                         <input type="checkbox" checked class="rounded bg-slate-950 border-slate-700 text-cyan-500 focus:ring-0 mr-2">
                         Ingat sesi saya
                     </label>
-                    <a href="#" class="text-cyan-400 hover:underline">Lupa sandi?</a>
+                    <span class="text-slate-500 text-[11px]">Gunakan akun terdaftar</span>
                 </div>
-                <button type="submit" class="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-sm rounded-lg shadow-lg shadow-cyan-500/20 transition-all">
-                    Masuk ke Sistem
+                <button type="submit" id="btn-submit-login" class="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-sm rounded-lg shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2">
+                    <span>Masuk ke Sistem</span>
                 </button>
             </form>
 
@@ -134,43 +138,47 @@
             <form id="form-signup" class="space-y-4 hidden">
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nama Lengkap</label>
-                    <input type="text" id="signup-name" placeholder="John Doe"
+                    <input type="text" id="signup-name" placeholder="Nama Operator / Petugas" required
                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Email</label>
-                    <input type="email" id="signup-email" placeholder="operator@contoh.com"
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Alamat Email</label>
+                    <input type="email" id="signup-email" placeholder="nama@email.com" required
                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 mb-1.5">Kata Sandi</label>
-                    <input type="password" id="signup-password" placeholder="Minimal 6 karakter"
+                    <input type="password" id="signup-password" placeholder="Minimal 6 karakter" required minlength="6"
                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400">
                 </div>
-                <button type="submit" class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-semibold text-sm rounded-lg shadow-lg shadow-emerald-500/20 transition-all">
-                    Daftar Akun Baru
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Konfirmasi Kata Sandi</label>
+                    <input type="password" id="signup-password-confirm" placeholder="Ulangi kata sandi di atas" required minlength="6"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400">
+                </div>
+                <button type="submit" id="btn-submit-signup" class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-semibold text-sm rounded-lg shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
+                    <span>Daftar Akun Baru</span>
                 </button>
             </form>
 
-            <div class="relative my-6 text-center">
+            <div class="relative my-5 text-center">
                 <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800"></div></div>
                 <span class="relative bg-slate-900 px-3 text-[11px] text-slate-500 uppercase tracking-wider">Atau Masuk Melalui</span>
             </div>
 
             <div class="space-y-2.5">
-                <button type="button" id="btn-google-auth" class="w-full flex items-center justify-center gap-3 py-2 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-all">
-                    <svg class="w-4 h-4" viewBox="0 0 24 24">
+                <button type="button" id="btn-google-auth" class="w-full flex items-center justify-center gap-3 py-2 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-all shadow">
+                    <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                     </svg>
-                    Sign In with Google
+                    <span id="btn-google-text">Sign In with Google</span>
                 </button>
 
-                <button type="button" id="btn-demo-auth" class="w-full py-2 px-4 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-800 text-cyan-300 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                    Akses Langsung Mode Demo (Operator CAS)
+                <button type="button" id="btn-demo-auth" class="w-full py-1.5 px-4 bg-transparent hover:bg-slate-800 text-slate-500 hover:text-slate-300 text-xs rounded transition-all flex items-center justify-center gap-1.5">
+                    Mode Demo Tamu (Akses Cepat Pengujian)
                 </button>
             </div>
         </div>
@@ -288,7 +296,7 @@
 
                 <!-- User Profile & Logout -->
                 <div id="user-profile-menu" class="flex items-center gap-2 pl-3 border-l border-slate-800">
-                    <div class="w-7 h-7 rounded-full bg-cyan-600 flex items-center justify-center text-xs font-bold text-white shadow-inner">
+                    <div id="user-avatar-display" class="w-7 h-7 rounded-full bg-cyan-600 flex items-center justify-center text-xs font-bold text-white shadow-inner overflow-hidden flex-shrink-0">
                         OP
                     </div>
                     <div class="hidden lg:block text-left">
@@ -417,9 +425,14 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <!-- Chart Historis Okupasi -->
                     <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-5 shadow-lg">
-                        <div class="mb-3">
-                            <h3 class="text-sm font-bold text-white">Historis Okupasi</h3>
-                            <p class="text-xs text-slate-400">Jumlah sampel per hari</p>
+                        <div class="mb-3 flex justify-between items-center">
+                            <div>
+                                <h3 class="text-sm font-bold text-white">Historis Okupasi</h3>
+                                <p class="text-xs text-slate-400">Real-time sliding window (prioritas data baru)</p>
+                            </div>
+                            <span id="okupasi-alarm-badge" class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition-all">
+                                NORMAL REAL-TIME
+                            </span>
                         </div>
                         <div class="h-60">
                             <canvas id="chart-okupasi"></canvas>
@@ -503,40 +516,6 @@
                                     <td class="py-3 px-4">45.0 %</td>
                                     <td class="py-3 px-4 font-bold text-rose-400">4</td>
                                 </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Event Alarm Terbaru (Image 2) -->
-                <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-5 shadow-lg">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-sm font-bold text-white">Event Alarm Terbaru</h3>
-                            <p class="text-xs text-slate-400">50 record terakhir</p>
-                        </div>
-                        <button class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-md shadow-md shadow-amber-500/20">
-                            EVENT LOG
-                        </button>
-                    </div>
-
-                    <div class="overflow-x-auto max-h-96">
-                        <table class="w-full text-left text-xs">
-                            <thead class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 bg-[#0F1A30]">
-                                <tr>
-                                    <th class="py-2.5 px-3">WAKTU</th>
-                                    <th class="py-2.5 px-3">PILAR</th>
-                                    <th class="py-2.5 px-3">JENIS</th>
-                                    <th class="py-2.5 px-3">A1</th>
-                                    <th class="py-2.5 px-3">A2</th>
-                                    <th class="py-2.5 px-3">B1</th>
-                                    <th class="py-2.5 px-3">B2</th>
-                                    <th class="py-2.5 px-3">LATAR</th>
-                                    <th class="py-2.5 px-3">ACK</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-alarm-tbody" class="divide-y divide-slate-800/80">
-                                <tr><td colspan="9" class="py-6 text-center text-slate-500">Memuat event alarm...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -741,60 +720,54 @@
 
 
             <!-- ==================================================== -->
-            <!-- TAB 3: ALARM VIEW                                    -->
+            <!-- TAB 3: ALARM VIEW (Event Alarm Terbaru & Pusat Log)   -->
             <!-- ==================================================== -->
             <div data-tab-view="alarm" class="space-y-6 hidden">
                 <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-6 shadow-lg">
-                    <div class="flex items-center justify-between mb-6">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                         <div>
-                            <h3 class="text-base font-bold text-white">Pusat Log Alarm Radiasi</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Daftar lengkap alarm terdeteksi dari pilar portal</p>
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                <h3 class="text-base font-bold text-white">Pusat Event Alarm Radiasi</h3>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5">50 record event alarm terbaru terdeteksi dari pilar portal</p>
                         </div>
-                        <div class="flex gap-2">
-                            <button onclick="loadRecentAlarms(); showToast('Alarm diperbarui', 'info')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700">
+                        <div class="flex items-center gap-2.5 flex-wrap">
+                            <!-- Quick Filter Pill Buttons -->
+                            <div class="flex bg-slate-950 border border-slate-800 rounded-lg p-1 text-xs">
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-cyan-400 bg-slate-800 font-semibold" data-alarm-filter="all">Semua</button>
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="115">Pilar 115</button>
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="116">Pilar 116</button>
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="Belum">Belum ACK</button>
+                            </div>
+
+                            <button onclick="loadRecentAlarms(true); showToast('Memperbarui log alarm...', 'info')" 
+                                    class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
                                 Segarkan Log
                             </button>
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto max-h-[500px]">
+                    <div class="overflow-x-auto max-h-[550px] border border-slate-800/80 rounded-lg">
                         <table class="w-full text-left text-xs">
-                            <thead class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 bg-[#0F1A30]">
+                            <thead class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 bg-[#0F1A30] z-10 shadow-sm">
                                 <tr>
-                                    <th class="py-3 px-3">WAKTU</th>
-                                    <th class="py-3 px-3">PILAR</th>
-                                    <th class="py-3 px-3">JENIS ALARM</th>
-                                    <th class="py-3 px-3">DET A1</th>
-                                    <th class="py-3 px-3">DET A2</th>
-                                    <th class="py-3 px-3">DET B1</th>
-                                    <th class="py-3 px-3">DET B2</th>
-                                    <th class="py-3 px-3">LATAR</th>
-                                    <th class="py-3 px-3">STATUS ACK</th>
+                                    <th class="py-3 px-3.5">WAKTU</th>
+                                    <th class="py-3 px-3.5">PILAR</th>
+                                    <th class="py-3 px-3.5">JENIS ALARM</th>
+                                    <th class="py-3 px-3.5">DET A1</th>
+                                    <th class="py-3 px-3.5">DET A2</th>
+                                    <th class="py-3 px-3.5">DET B1</th>
+                                    <th class="py-3 px-3.5">DET B2</th>
+                                    <th class="py-3 px-3.5">LATAR</th>
+                                    <th class="py-3 px-3.5">STATUS ACK</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-800">
-                                <tr class="hover:bg-slate-800/40">
-                                    <td class="py-2.5 px-3 font-mono text-slate-300">2025-11-14 8:29:03</td>
-                                    <td class="py-2.5 px-3 font-semibold text-cyan-400">Pilar 116</td>
-                                    <td class="py-2.5 px-3 text-rose-300">Alarm Gamma Detector 1 and Detector 2</td>
-                                    <td class="py-2.5 px-3 font-bold text-rose-400">ON</td>
-                                    <td class="py-2.5 px-3 font-bold text-rose-400">ON</td>
-                                    <td class="py-2.5 px-3 text-slate-400">-</td>
-                                    <td class="py-2.5 px-3 text-slate-400">-</td>
-                                    <td class="py-2.5 px-3 font-mono text-slate-400">1095 / 989</td>
-                                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">Belum ACK</span></td>
-                                </tr>
-                                <tr class="hover:bg-slate-800/40">
-                                    <td class="py-2.5 px-3 font-mono text-slate-300">2025-11-14 8:29:02</td>
-                                    <td class="py-2.5 px-3 font-semibold text-cyan-400">Pilar 115</td>
-                                    <td class="py-2.5 px-3 text-rose-300">Alarm Gamma Detector 1 and Detector 2</td>
-                                    <td class="py-2.5 px-3 font-bold text-rose-400">ON</td>
-                                    <td class="py-2.5 px-3 font-bold text-rose-400">ON</td>
-                                    <td class="py-2.5 px-3 font-bold text-rose-400">ON</td>
-                                    <td class="py-2.5 px-3 font-bold text-rose-400">ON</td>
-                                    <td class="py-2.5 px-3 font-mono text-slate-400">1095 / 989</td>
-                                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">Belum ACK</span></td>
-                                </tr>
+                            <tbody id="table-alarm-tbody" class="divide-y divide-slate-800/80">
+                                <tr><td colspan="9" class="py-8 text-center text-slate-500">Memuat event alarm...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -888,11 +861,13 @@
                         <span class="px-2.5 py-0.5 rounded text-xs font-semibold bg-cyan-500/20 text-cyan-400">Firebase v10 SDK</span>
                     </div>
 
-                    <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 text-xs text-slate-300 space-y-2 mb-4 font-mono">
-                        <p class="text-slate-400">// Anda dapat memasukkan konfigurasi Firebase Web App Anda:</p>
-                        <p>apiKey: "AIzaSy..."</p>
-                        <p>authDomain: "monitoring-rpm.firebaseapp.com"</p>
-                        <p>projectId: "monitoring-rpm"</p>
+                    <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 text-xs text-slate-300 space-y-1.5 mb-4 font-mono">
+                        <p class="text-cyan-400 font-semibold">// Konfigurasi Aktif Firebase (Proyek: monitoring-rpm-12):</p>
+                        <p>apiKey: "AIzaSyC3UsFQglXETu9J_uHXhkD7yk6GP-2gzL4"</p>
+                        <p>authDomain: "monitoring-rpm-12.firebaseapp.com"</p>
+                        <p>projectId: "monitoring-rpm-12"</p>
+                        <p>storageBucket: "monitoring-rpm-12.firebasestorage.app"</p>
+                        <p>appId: "1:1044642651459:web:ec0f8b617cdb1f028463f6"</p>
                     </div>
 
                     <div class="flex items-center gap-3">
@@ -914,6 +889,20 @@
     <script src="/js/app-rpm.js"></script>
     
     <script>
+        // Helpers for Auth Error Box
+        function setAuthError(msg) {
+            const box = document.getElementById('auth-error-box');
+            if (box) {
+                if (msg) {
+                    box.textContent = msg;
+                    box.classList.remove('hidden');
+                } else {
+                    box.textContent = '';
+                    box.classList.add('hidden');
+                }
+            }
+        }
+
         // Tab auth toggle
         const tabLogin = document.getElementById('tab-btn-login');
         const tabSignup = document.getElementById('tab-btn-signup');
@@ -921,43 +910,90 @@
         const formSignup = document.getElementById('form-signup');
 
         tabLogin.addEventListener('click', () => {
-            tabLogin.className = 'flex-1 pb-2.5 text-sm font-semibold text-cyan-400 border-b-2 border-cyan-400';
-            tabSignup.className = 'flex-1 pb-2.5 text-sm font-semibold text-slate-400 hover:text-slate-200';
+            setAuthError(null);
+            tabLogin.className = 'flex-1 pb-2.5 text-sm font-semibold text-cyan-400 border-b-2 border-cyan-400 transition-all';
+            tabSignup.className = 'flex-1 pb-2.5 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all';
             formLogin.classList.remove('hidden');
             formSignup.classList.add('hidden');
         });
 
         tabSignup.addEventListener('click', () => {
-            tabSignup.className = 'flex-1 pb-2.5 text-sm font-semibold text-cyan-400 border-b-2 border-cyan-400';
-            tabLogin.className = 'flex-1 pb-2.5 text-sm font-semibold text-slate-400 hover:text-slate-200';
+            setAuthError(null);
+            tabSignup.className = 'flex-1 pb-2.5 text-sm font-semibold text-cyan-400 border-b-2 border-cyan-400 transition-all';
+            tabLogin.className = 'flex-1 pb-2.5 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all';
             formSignup.classList.remove('hidden');
             formLogin.classList.add('hidden');
         });
 
-        // Form submit handlers
+        // Form submit: Login
         formLogin.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('login-email').value;
+            setAuthError(null);
+            const btn = document.getElementById('btn-submit-login');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> Memverifikasi...';
+
+            const email = document.getElementById('login-email').value.trim();
             const pass = document.getElementById('login-password').value;
+
             const res = await window.rpmAuth.loginWithEmail(email, pass);
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+
             if (!res.success) {
+                setAuthError(res.message);
                 showToast(res.message || 'Login gagal', 'error');
             }
         });
 
+        // Form submit: Sign Up / Register
         formSignup.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name = document.getElementById('signup-name').value;
-            const email = document.getElementById('signup-email').value;
+            setAuthError(null);
+
+            const name = document.getElementById('signup-name').value.trim();
+            const email = document.getElementById('signup-email').value.trim();
             const pass = document.getElementById('signup-password').value;
+            const confirmPass = document.getElementById('signup-password-confirm').value;
+
+            if (pass !== confirmPass) {
+                setAuthError('Konfirmasi kata sandi tidak cocok. Harap masukkan sandi yang sama.');
+                return;
+            }
+
+            const btn = document.getElementById('btn-submit-signup');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> Mendaftarkan...';
+
             const res = await window.rpmAuth.signUpWithEmail(name, email, pass);
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+
             if (!res.success) {
+                setAuthError(res.message);
                 showToast(res.message || 'Pendaftaran gagal', 'error');
             }
         });
 
-        document.getElementById('btn-google-auth').addEventListener('click', () => {
-            window.rpmAuth.signInWithGoogle();
+        // Google Sign-In Popup
+        document.getElementById('btn-google-auth').addEventListener('click', async () => {
+            setAuthError(null);
+            const btn = document.getElementById('btn-google-auth');
+            const btnText = document.getElementById('btn-google-text');
+            const origText = btnText.textContent;
+            btn.disabled = true;
+            btnText.textContent = 'Membuka Google Popup...';
+
+            const res = await window.rpmAuth.signInWithGoogle();
+            btn.disabled = false;
+            btnText.textContent = origText;
+
+            if (!res.success) {
+                setAuthError(res.message);
+                showToast(res.message, 'error');
+            }
         });
 
         document.getElementById('btn-demo-auth').addEventListener('click', () => {

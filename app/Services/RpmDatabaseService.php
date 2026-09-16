@@ -145,12 +145,13 @@ class RpmDatabaseService
                     ];
                 }
 
-                // Format status
+                // Format status: Alarm is strictly triggered if gamma detector alarm flags are active
                 $hasAlarm = false;
                 if ($latestReading) {
-                    $hasAlarm = !empty($latestReading['alarmA1']) || !empty($latestReading['alarmA2']) ||
-                                !empty($latestReading['alarmB1']) || !empty($latestReading['alarmB2']) ||
-                                ($latestReading['sOkupasi'] ?? 0) == 1;
+                    $hasAlarm = (!empty($latestReading['alarmA1']) && $latestReading['alarmA1'] == 1) ||
+                                (!empty($latestReading['alarmA2']) && $latestReading['alarmA2'] == 1) ||
+                                (!empty($latestReading['alarmB1']) && $latestReading['alarmB1'] == 1) ||
+                                (!empty($latestReading['alarmB2']) && $latestReading['alarmB2'] == 1);
                 }
 
                 return [
@@ -183,7 +184,7 @@ class RpmDatabaseService
                         'HUMIDITY' => 47,
                         'sOkupasi' => 1,
                     ],
-                    'is_alarm_active' => true,
+                    'is_alarm_active' => false,
                     'detector_a_status' => 'NORMAL',
                     'detector_b_status' => 'NORMAL',
                     'okupasi_status' => 'YA',
