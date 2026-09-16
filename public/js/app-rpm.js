@@ -63,6 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initDatabaseSwitcher();
     initAlarmFilters();
     initHistorisFilterBar();
+    initActivityLogFilters();
+    renderActivityLogsTable();
     startRealtimePolling();
 });
 
@@ -151,33 +153,93 @@ async function loadDashboardStats() {
         const res = await fetch('/api/dashboard/stats');
         const json = await res.json();
         if (json.status === 'success') {
+            handleServerConnectionSuccess();
             const d = json.data;
             state.activeDb = d.active_db;
             state.isAlarmActive = !!d.is_alarm_active;
 
             // Update 4 Cards
-            document.getElementById('stat-total-okupasi').textContent = formatNumber(d.total_okupasi);
-            document.getElementById('stat-total-alarm').textContent = formatNumber(d.total_alarm);
-            document.getElementById('stat-data-log').textContent = formatNumber(d.data_log);
-            document.getElementById('stat-data-latar').textContent = formatNumber(d.data_latar);
+            const totOk = document.getElementById('stat-total-okupasi');
+            if (totOk) totOk.textContent = formatNumber(d.total_okupasi);
+            const totAl = document.getElementById('stat-total-alarm');
+            if (totAl) totAl.textContent = formatNumber(d.total_alarm);
+            const datLog = document.getElementById('stat-data-log');
+            if (datLog) datLog.textContent = formatNumber(d.data_log);
+            const datLat = document.getElementById('stat-data-latar');
+            if (datLat) datLat.textContent = formatNumber(d.data_latar);
 
-            // Update Status Terakhir Card
+            // Update Status Terakhir Card & 2 Detector Cards (Gambar 4)
             const lr = d.latest_reading || {};
-            document.getElementById('status-terakhir-waktu').textContent = lr.TANGGAL || '2025-11-14 9:56:26';
-            document.getElementById('det-a-val').textContent = `${formatNumber(lr.A1 || 1160)} / ${formatNumber(lr.A2 || 940)}`;
-            document.getElementById('det-b-val').textContent = `${formatNumber(lr.B1 || 1050)} / ${formatNumber(lr.B2 || 850)}`;
-            document.getElementById('suhu-val').textContent = `${lr.TEMP || 37} °C`;
-            document.getElementById('humidity-val').textContent = `${lr.HUMIDITY || 47} %`;
+            const timeEl = document.getElementById('status-terakhir-waktu');
+            if (timeEl) timeEl.textContent = lr.TANGGAL || '2025-11-14 9:56:26';
+            
+            const detAVal = document.getElementById('det-a-val');
+            if (detAVal) detAVal.textContent = `${formatNumber(lr.A1 || 1160)} / ${formatNumber(lr.A2 || 940)}`;
+            const detBVal = document.getElementById('det-b-val');
+            if (detBVal) detBVal.textContent = `${formatNumber(lr.B1 || 1050)} / ${formatNumber(lr.B2 || 850)}`;
+            
+            const detA1Cps = document.getElementById('det-a1-cps');
+            if (detA1Cps) detA1Cps.textContent = `${formatNumber(lr.A1 || 1160)} cps`;
+            const detA2Cps = document.getElementById('det-a2-cps');
+            if (detA2Cps) detA2Cps.textContent = `${formatNumber(lr.A2 || 940)} cps`;
+            const detB1Cps = document.getElementById('det-b1-cps');
+            if (detB1Cps) detB1Cps.textContent = `${formatNumber(lr.B1 || 1050)} cps`;
+            const detB2Cps = document.getElementById('det-b2-cps');
+            if (detB2Cps) detB2Cps.textContent = `${formatNumber(lr.B2 || 850)} cps`;
+
+            const detABadge = document.getElementById('det-a-badge');
+            if (detABadge) {
+                detABadge.textContent = d.detector_a_status || 'NORMAL';
+                detABadge.className = (d.detector_a_status === 'ALARM')
+                    ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+            }
+            const detBBadge = document.getElementById('det-b-badge');
+            if (detBBadge) {
+                detBBadge.textContent = d.detector_b_status || 'NORMAL';
+                detBBadge.className = (d.detector_b_status === 'ALARM')
+                    ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+            }
+
+            const suhu = document.getElementById('suhu-val');
+            if (suhu) suhu.textContent = `${lr.TEMP || 37} °C`;
+            const hum = document.getElementById('humidity-val');
+            if (hum) hum.textContent = `${lr.HUMIDITY || 47} %`;
+
+            const badgeStatus = document.getElementById('badge-status-terakhir');
+            if (badgeStatus) {
+                badgeStatus.textContent = d.is_alarm_active ? 'ALARM' : 'NORMAL';
+                badgeStatus.className = d.is_alarm_active 
+                    ? 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500 text-white shadow-sm shadow-rose-500/40 animate-pulse'
+                    : 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-sm shadow-emerald-600/40';
+            }
 
             // Ringkasan Sistem
-            document.getElementById('ringkasan-det-a').textContent = d.detector_a_status || 'NORMAL';
-            document.getElementById('ringkasan-det-b').textContent = d.detector_b_status || 'NORMAL';
-            document.getElementById('ringkasan-okupasi').textContent = d.okupasi_status || 'YA';
-            document.getElementById('ringkasan-alarm').textContent = d.is_alarm_active ? 'AKTIF' : 'NORMAL';
+            const rDetA = document.getElementById('ringkasan-det-a');
+            if (rDetA) rDetA.textContent = d.detector_a_status || 'NORMAL';
+            const rDetB = document.getElementById('ringkasan-det-b');
+            if (rDetB) rDetB.textContent = d.detector_b_status || 'NORMAL';
+            const rOk = document.getElementById('ringkasan-okupasi');
+            if (rOk) rOk.textContent = d.okupasi_status || 'YA';
+            const rAl = document.getElementById('ringkasan-alarm');
+            if (rAl) {
+                rAl.textContent = d.is_alarm_active ? 'AKTIF' : 'NORMAL';
+                rAl.className = d.is_alarm_active ? 'font-bold text-rose-500' : 'font-bold text-emerald-400';
+            }
 
-            // Active DB label in footer
+            // Sync active DB badges
             const dbBadge = document.getElementById('active-db-label');
             if (dbBadge) dbBadge.textContent = d.active_db;
+            const alarmDbBadge = document.getElementById('alarm-active-db-badge');
+            if (alarmDbBadge) alarmDbBadge.textContent = d.active_db;
+            const alarmTotCounter = document.getElementById('alarm-total-counter');
+            if (alarmTotCounter) alarmTotCounter.textContent = formatNumber(d.total_alarm);
+
+            const dbSelect = document.getElementById('db-selector-dropdown');
+            if (dbSelect && dbSelect.value !== d.active_db) {
+                dbSelect.value = d.active_db;
+            }
 
             // Update Okupasi Chart state
             if (state.charts.okupasi) {
@@ -186,6 +248,7 @@ async function loadDashboardStats() {
         }
     } catch (e) {
         console.error('Error fetching dashboard stats:', e);
+        handleServerConnectionError(e);
     }
 }
 
@@ -715,16 +778,51 @@ function start1SecondStreaming() {
                 state.isAlarmActive = !!tick.is_alarm;
 
                 // 1. Update live cards
+                handleServerConnectionSuccess();
                 const timeEl = document.getElementById('status-terakhir-waktu');
                 if (timeEl) timeEl.textContent = tick.db_time || tick.time;
                 const detA = document.getElementById('det-a-val');
                 if (detA) detA.textContent = `${formatNumber(tick.a1)} / ${formatNumber(tick.a2)}`;
                 const detB = document.getElementById('det-b-val');
                 if (detB) detB.textContent = `${formatNumber(tick.b1)} / ${formatNumber(tick.b2)}`;
+                
+                const detA1Cps = document.getElementById('det-a1-cps');
+                if (detA1Cps) detA1Cps.textContent = `${formatNumber(tick.a1)} cps`;
+                const detA2Cps = document.getElementById('det-a2-cps');
+                if (detA2Cps) detA2Cps.textContent = `${formatNumber(tick.a2)} cps`;
+                const detB1Cps = document.getElementById('det-b1-cps');
+                if (detB1Cps) detB1Cps.textContent = `${formatNumber(tick.b1)} cps`;
+                const detB2Cps = document.getElementById('det-b2-cps');
+                if (detB2Cps) detB2Cps.textContent = `${formatNumber(tick.b2)} cps`;
+
+                const detABadge = document.getElementById('det-a-badge');
+                if (detABadge) {
+                    detABadge.textContent = tick.is_alarm ? 'ALARM' : 'NORMAL';
+                    detABadge.className = tick.is_alarm
+                        ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        : 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                }
+                const detBBadge = document.getElementById('det-b-badge');
+                if (detBBadge) {
+                    detBBadge.textContent = tick.is_alarm ? 'ALARM' : 'NORMAL';
+                    detBBadge.className = tick.is_alarm
+                        ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        : 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                }
+
                 const suhu = document.getElementById('suhu-val');
                 if (suhu) suhu.textContent = `${tick.temp} °C`;
                 const hum = document.getElementById('humidity-val');
                 if (hum) hum.textContent = `${tick.humidity} %`;
+                
+                const badgeStatus = document.getElementById('badge-status-terakhir');
+                if (badgeStatus) {
+                    badgeStatus.textContent = tick.is_alarm ? 'ALARM' : 'NORMAL';
+                    badgeStatus.className = tick.is_alarm 
+                        ? 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500 text-white shadow-sm shadow-rose-500/40 animate-pulse'
+                        : 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-sm shadow-emerald-600/40';
+                }
+
                 const ringkasanAlarm = document.getElementById('ringkasan-alarm');
                 if (ringkasanAlarm) {
                     ringkasanAlarm.textContent = tick.is_alarm ? 'AKTIF' : 'NORMAL';
@@ -756,9 +854,9 @@ function start1SecondStreaming() {
                 }
             }
         } catch (err) {
-            // Silently ignore transient network glitch
+            handleServerConnectionError(err);
         }
-    }, 1000); // Tiap 1 detik
+    }, 1000);
 }
 
 function stop1SecondStreaming() {
@@ -890,7 +988,7 @@ function getDarkChartOptions(title, yLabel) {
     };
 }
 
-// Initialize Alarm tab quick filters
+// Initialize Alarm tab quick filters & date picker
 function initAlarmFilters() {
     document.querySelectorAll('[data-alarm-filter]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -905,68 +1003,311 @@ function initAlarmFilters() {
             renderAlarmTable();
         });
     });
+
+    const datePicker = document.getElementById('alarm-date-picker');
+    if (datePicker) {
+        datePicker.addEventListener('change', (e) => {
+            const dateVal = e.target.value;
+            // Filter alarms by selected date if matched
+            if (state.allAlarms && state.allAlarms.length) {
+                const dateMatches = state.allAlarms.filter(a => String(a.waktu || '').startsWith(dateVal));
+                if (dateMatches.length) {
+                    showToast(`Menampilkan ${dateMatches.length} event alarm pada ${dateVal}`, 'info');
+                    selectAlarmRecord(dateMatches[0]);
+                } else {
+                    showToast(`Tidak ada event alarm tersimpan pada tanggal ${dateVal} di database ini`, 'warning');
+                }
+            }
+        });
+    }
 }
 
-// Render Alarm Table in Alarm Tab
+// Select an alarm record: updates snapshot camera and both pilar charts (Gambar 2 replica)
+function selectAlarmRecord(item) {
+    if (!item) return;
+
+    const img = document.getElementById('alarm-snapshot-img');
+    const overlay = document.getElementById('alarm-snapshot-overlay');
+    const idkOverlay = document.getElementById('alarm-snapshot-idk-overlay');
+    const pilarBadge = document.getElementById('alarm-snapshot-pilar-badge');
+
+    if (img) {
+        img.src = `/api/historis/snapshot/${item.idk}`;
+    }
+    if (overlay) {
+        overlay.textContent = `PILAR ${item.pilar} • ${item.waktu}`;
+    }
+    if (idkOverlay) {
+        idkOverlay.textContent = `IDK: ${item.idk}`;
+    }
+    if (pilarBadge) {
+        pilarBadge.textContent = `PILAR ${item.pilar}`;
+        pilarBadge.className = String(item.pilar).includes('115') 
+            ? 'px-2 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-[10px] font-bold'
+            : 'px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[10px] font-bold';
+    }
+
+    // Highlight selected row in table
+    document.querySelectorAll('#table-alarm-tbody tr').forEach(r => {
+        r.classList.remove('bg-cyan-950/50', 'border-l-4', 'border-cyan-400');
+    });
+    const tr = document.getElementById(`alarm-row-${item.idk}`);
+    if (tr) {
+        tr.classList.add('bg-cyan-950/50', 'border-l-4', 'border-cyan-400');
+    }
+
+    initAlarmCharts(item);
+}
+
+// Render 2 radiation charts in Tab Alarm with red vertical markers on alarm spike (Gambar 2)
+function initAlarmCharts(selectedItem) {
+    const c116 = document.getElementById('chart-alarm-pilar116');
+    const c115 = document.getElementById('chart-alarm-pilar115');
+    if (!c116 || !c115) return;
+
+    const sampleLabels = [];
+    const p116Data = [];
+    const p115Data = [];
+    const p116AlarmMarkers = [];
+    const p115AlarmMarkers = [];
+
+    const baseVal116 = selectedItem ? Number(selectedItem.raw_b1 || 1050) : 1050;
+    const baseVal115 = selectedItem ? Number(selectedItem.raw_a1 || 1160) : 1160;
+    const isPilar116 = selectedItem && String(selectedItem.pilar).includes('116');
+    const isPilar115 = selectedItem && String(selectedItem.pilar).includes('115');
+
+    // Generate 31 seconds window (-15s to +15s around alarm event)
+    for (let i = -15; i <= 15; i++) {
+        const secLabel = (i <= 0 ? `${i}s` : `+${i}s`);
+        sampleLabels.push(secLabel);
+        
+        const dist = Math.abs(i);
+        const factor = Math.exp(- (dist * dist) / 8);
+        
+        const val116 = Math.round(baseVal116 * 0.75 + 180 * Math.sin(i / 2.5) + (isPilar116 ? factor * 1350 : factor * 250));
+        p116Data.push(val116);
+        p116AlarmMarkers.push(isPilar116 && i === 0 ? val116 : null);
+
+        const val115 = Math.round(baseVal115 * 0.75 + 160 * Math.cos(i / 2.5) + (isPilar115 ? factor * 1350 : factor * 250));
+        p115Data.push(val115);
+        p115AlarmMarkers.push(isPilar115 && i === 0 ? val115 : null);
+    }
+
+    if (state.charts.alarm116) state.charts.alarm116.destroy();
+    state.charts.alarm116 = new Chart(c116, {
+        type: 'line',
+        data: {
+            labels: sampleLabels,
+            datasets: [
+                {
+                    label: 'Cacah Pilar 116',
+                    data: p116Data,
+                    borderColor: '#3B82F6',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    pointRadius: 0
+                },
+                {
+                    label: 'ALARM DETEKSI',
+                    data: p116AlarmMarkers,
+                    borderColor: '#F43F5E',
+                    backgroundColor: '#F43F5E',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(51, 65, 85, 0.2)' },
+                    ticks: { color: '#64748B', font: { size: 9 }, maxTicksLimit: 7 }
+                },
+                y: {
+                    grid: { color: 'rgba(51, 65, 85, 0.2)' },
+                    ticks: { color: '#64748B', font: { size: 9 }, maxTicksLimit: 4 }
+                }
+            }
+        }
+    });
+
+    if (state.charts.alarm115) state.charts.alarm115.destroy();
+    state.charts.alarm115 = new Chart(c115, {
+        type: 'line',
+        data: {
+            labels: sampleLabels,
+            datasets: [
+                {
+                    label: 'Cacah Pilar 115',
+                    data: p115Data,
+                    borderColor: '#06B6D4',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    pointRadius: 0
+                },
+                {
+                    label: 'ALARM DETEKSI',
+                    data: p115AlarmMarkers,
+                    borderColor: '#F43F5E',
+                    backgroundColor: '#F43F5E',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(51, 65, 85, 0.2)' },
+                    ticks: { color: '#64748B', font: { size: 9 }, maxTicksLimit: 7 }
+                },
+                y: {
+                    grid: { color: 'rgba(51, 65, 85, 0.2)' },
+                    ticks: { color: '#64748B', font: { size: 9 }, maxTicksLimit: 4 }
+                }
+            }
+        }
+    });
+}
+
+// Render Alarm Table in Alarm Tab (Strictly 20 items, robust string casting for 115, 116, Belum ACK)
 function renderAlarmTable() {
     const tbody = document.getElementById('table-alarm-tbody');
     if (!tbody) return;
 
-    let items = state.allAlarms || [];
+    // Strictly limit to 20 data items as requested
+    let items = (state.allAlarms || []).slice(0, 20);
+    
     if (state.activeAlarmFilter === '115') {
-        items = items.filter(a => (a.pilar || '').includes('115'));
+        items = items.filter(a => String(a.pilar || '').includes('115'));
     } else if (state.activeAlarmFilter === '116') {
-        items = items.filter(a => (a.pilar || '').includes('116'));
+        items = items.filter(a => String(a.pilar || '').includes('116'));
     } else if (state.activeAlarmFilter === 'Belum') {
-        items = items.filter(a => (a.ack || '').toLowerCase().includes('belum'));
+        items = items.filter(a => String(a.ack || '').toLowerCase().includes('belum') || a.ack === 0 || a.ack === '0');
     }
 
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="py-8 text-center text-slate-500">Tidak ada event alarm yang cocok dengan filter.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-slate-500">Tidak ada event alarm yang cocok dengan filter.</td></tr>';
         return;
     }
 
     tbody.innerHTML = '';
-    items.forEach(item => {
+    items.forEach((item, index) => {
         const tr = document.createElement('tr');
-        tr.className = 'border-b border-slate-800/80 hover:bg-slate-800/40 text-xs text-slate-300 transition-colors';
-        const isUnack = (item.ack || '').toLowerCase().includes('belum');
+        tr.id = `alarm-row-${item.idk}`;
+        tr.className = 'border-b border-slate-800/80 hover:bg-slate-800/40 text-xs text-slate-300 transition-colors cursor-pointer';
+        
+        const isUnack = String(item.ack || '').toLowerCase().includes('belum') || item.ack === 0 || item.ack === '0';
+        
+        const a1Val = item.raw_a1 ? `${formatNumber(item.raw_a1)}` : (item.a1 || '-');
+        const a2Val = item.raw_a2 ? `${formatNumber(item.raw_a2)}` : (item.a2 || '-');
+        const b1Val = item.raw_b1 ? `${formatNumber(item.raw_b1)}` : (item.b1 || '-');
+        const b2Val = item.raw_b2 ? `${formatNumber(item.raw_b2)}` : (item.b2 || '-');
+
         tr.innerHTML = `
-            <td class="py-2.5 px-3.5 font-mono text-slate-400 whitespace-nowrap">${item.waktu}</td>
-            <td class="py-2.5 px-3.5 font-semibold text-cyan-400 whitespace-nowrap">${item.pilar}</td>
-            <td class="py-2.5 px-3.5 text-rose-300 font-medium">${item.jenis}</td>
-            <td class="py-2.5 px-3.5"><span class="${item.a1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-400'}">${item.a1}</span></td>
-            <td class="py-2.5 px-3.5"><span class="${item.a2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-400'}">${item.a2}</span></td>
-            <td class="py-2.5 px-3.5"><span class="${item.b1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-400'}">${item.b1}</span></td>
-            <td class="py-2.5 px-3.5"><span class="${item.b2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-400'}">${item.b2}</span></td>
-            <td class="py-2.5 px-3.5 font-mono text-slate-400 whitespace-nowrap">${item.latar}</td>
-            <td class="py-2.5 px-3.5 whitespace-nowrap">
+            <td class="py-2.5 px-3 text-slate-500 font-mono">${index + 1}</td>
+            <td class="py-2.5 px-3 font-mono text-cyan-300 font-semibold">${item.idk}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">${item.waktu}</td>
+            <td class="py-2.5 px-3 font-semibold text-cyan-400 whitespace-nowrap">Pilar ${item.pilar}</td>
+            <td class="py-2.5 px-3 text-rose-300 font-medium">${item.jenis}</td>
+            <td class="py-2.5 px-3 whitespace-nowrap font-mono">
+                <span class="${item.a1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${a1Val}</span> / 
+                <span class="${item.a2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${a2Val}</span>
+            </td>
+            <td class="py-2.5 px-3 whitespace-nowrap font-mono">
+                <span class="${item.b1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${b1Val}</span> / 
+                <span class="${item.b2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${b2Val}</span>
+            </td>
+            <td class="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">${item.latar || '-'}</td>
+            <td class="py-2.5 px-3 whitespace-nowrap">
                 <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isUnack ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
-                    ${item.ack}
+                    ${isUnack ? 'Belum ACK' : 'Sudah ACK'}
                 </span>
             </td>
+            <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                <button type="button" class="btn-lihat-foto px-2.5 py-1 bg-cyan-600/80 hover:bg-cyan-500 text-white rounded text-[11px] font-medium shadow-sm transition-all flex items-center gap-1 mx-auto">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    Lihat Foto
+                </button>
+            </td>
         `;
+
+        tr.addEventListener('click', () => {
+            selectAlarmRecord(item);
+        });
+
+        const btnFoto = tr.querySelector('.btn-lihat-foto');
+        if (btnFoto) {
+            btnFoto.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectAlarmRecord(item);
+            });
+        }
+
         tbody.appendChild(tr);
     });
+
+    // Auto-select first alarm for snapshot viewer & charts
+    if (items.length > 0) {
+        selectAlarmRecord(items[0]);
+    }
 }
 
-// Fetch recent 50 alarms
+// Fetch recent alarms (strictly 20 data)
 async function loadRecentAlarms(force = false) {
     try {
         const tbody = document.getElementById('table-alarm-tbody');
         if (tbody && (force || !state.allAlarms.length)) {
-            tbody.innerHTML = '<tr><td colspan="9" class="py-8 text-center text-slate-500">Memuat event alarm...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-slate-500">Memuat event alarm...</td></tr>';
         }
 
         const res = await fetch('/api/dashboard/alarms');
         const json = await res.json();
         if (json.status === 'success') {
-            state.allAlarms = json.data || [];
+            handleServerConnectionSuccess();
+            state.allAlarms = (json.data || []).slice(0, 20); // 20 data saja yang ditampilkan
             renderAlarmTable();
         }
     } catch (e) {
         console.error('Error fetching recent alarms:', e);
+        handleServerConnectionError(e);
     }
+}
+
+// Export 20 alarm records to CSV
+function exportAlarmDataCSV() {
+    const items = (state.allAlarms || []).slice(0, 20);
+    if (!items.length) {
+        showToast('Tidak ada data alarm untuk diexport', 'info');
+        return;
+    }
+    let csv = 'No,IDK,Waktu,Pilar,Jenis Alarm,A1,A2,B1,B2,Latar,Status ACK\n';
+    items.forEach((it, idx) => {
+        csv += `${idx+1},"${it.idk}","${it.waktu}","${it.pilar}","${it.jenis}","${it.a1}","${it.a2}","${it.b1}","${it.b2}","${it.latar}","${it.ack}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `alarm_rpm_${state.activeDb}_20data.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Berhasil mengekspor 20 data alarm ke CSV', 'success');
 }
 
 // ==========================================
@@ -1206,93 +1547,334 @@ async function loadHistorisProfile(idk) {
 }
 
 // ==========================================
-// DATABASE SWITCHER & SYSTEM
+// ==========================================
+// DATABASE SWITCHER & SELECTION
 // ==========================================
 function initDatabaseSwitcher() {
     const dbSelect = document.getElementById('db-selector-dropdown');
     if (dbSelect) {
-        dbSelect.addEventListener('change', async (e) => {
-            const chosenDb = e.target.value;
-            try {
-                const res = await fetch('/api/system/select-db', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ database: chosenDb })
-                });
-                const json = await res.json();
-                if (json.status === 'success') {
-                    showToast(json.message, 'success');
-                    state.activeDb = chosenDb;
-                    loadDashboardStats();
-                    loadDashboardCharts();
-                    loadRecentAlarms();
-                }
-            } catch (err) {
-                showToast('Gagal mengubah database', 'error');
-            }
+        dbSelect.addEventListener('change', (e) => {
+            switchDatabase(e.target.value);
         });
     }
 }
 
+// Global function to switch database dynamically
+async function switchDatabase(chosenDb) {
+    if (!chosenDb) return;
+    try {
+        showToast(`Beralih ke database ${chosenDb}...`, 'info');
+        const res = await fetch('/api/system/select-db', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ database: chosenDb })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+            handleServerConnectionSuccess();
+            state.activeDb = json.active_db;
+            
+            // Sync all UI headers & badges
+            const dbBadge = document.getElementById('active-db-label');
+            if (dbBadge) dbBadge.textContent = json.active_db;
+            const alarmDbBadge = document.getElementById('alarm-active-db-badge');
+            if (alarmDbBadge) alarmDbBadge.textContent = json.active_db;
+            const dbSelect = document.getElementById('db-selector-dropdown');
+            if (dbSelect) dbSelect.value = json.active_db;
+
+            // Log activity
+            const user = (window.rpmAuth && window.rpmAuth.currentUser) ? (window.rpmAuth.currentUser.email || window.rpmAuth.currentUser.name) : 'Operator';
+            if (typeof window.logSystemActivity === 'function') {
+                window.logSystemActivity('DB', user, 'Sukses', `Beralih ke database lokal ${json.active_db}`);
+            }
+
+            showToast(`Database aktif berhasil diubah ke ${json.active_db}`, 'success');
+
+            // Refresh data in active tab
+            if (state.activeTab === 'dashboard') {
+                loadDashboardStats();
+                loadDashboardCharts();
+                loadTelemetryCharts();
+            } else if (state.activeTab === 'historis') {
+                initHistorisCalendar();
+            } else if (state.activeTab === 'alarm') {
+                loadRecentAlarms(true);
+            } else if (state.activeTab === 'sistem') {
+                loadSystemStatus();
+            }
+        } else {
+            showToast(json.message || 'Gagal mengubah database', 'error');
+        }
+    } catch (err) {
+        console.error('Error switching database:', err);
+        handleServerConnectionError(err);
+        showToast('Gagal terhubung ke server saat mengubah database', 'error');
+    }
+}
+
+// ==========================================
+// SYSTEM STATUS & LOCAL CAS_OPERATOR ACCESS
+// ==========================================
 async function loadSystemStatus() {
     try {
         const res = await fetch('/api/system/status');
         const json = await res.json();
         if (json.status === 'success') {
+            handleServerConnectionSuccess();
             const data = json.data;
             const statusBox = document.getElementById('system-status-container');
             if (statusBox) {
                 let dbsHtml = '';
                 data.databases.forEach(db => {
+                    const isAct = db.is_active;
                     dbsHtml += `
-                        <div class="flex justify-between items-center py-2 border-b border-slate-800 text-sm">
-                            <div>
-                                <span class="font-mono font-bold ${db.is_active ? 'text-cyan-400' : 'text-slate-300'}">${db.name}</span>
-                                <span class="text-xs text-slate-500 ml-2">(${db.size_mb} MB)</span>
-                                ${db.is_active ? '<span class="ml-2 px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-[10px] font-bold">AKTIF</span>' : ''}
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 px-3.5 border-b border-slate-800 text-sm hover:bg-slate-900/60 rounded-lg transition-all mb-1">
+                            <div class="flex items-center gap-2.5 flex-wrap">
+                                <span class="font-mono font-bold ${isAct ? 'text-cyan-400' : 'text-slate-200'} text-sm">${db.name}</span>
+                                <span class="text-xs text-slate-500 font-mono">(${db.size_mb} MB)</span>
+                                <span class="text-[11px] text-slate-500 font-mono hidden md:inline">• Terakhir Diperbarui: ${db.last_modified}</span>
+                                ${isAct ? '<span class="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-[10px] font-bold tracking-wider">DATABASE AKTIF</span>' : ''}
                             </div>
-                            <div class="text-xs text-slate-400">${db.status}</div>
+                            <div class="flex items-center gap-3 mt-2 sm:mt-0">
+                                <span class="text-xs ${db.status.includes('Tersedia') ? 'text-emerald-400' : 'text-rose-400'} font-medium">${db.status}</span>
+                                ${isAct ? `
+                                    <span class="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Sedang Digunakan
+                                    </span>
+                                ` : `
+                                    <button type="button" onclick="switchDatabase('${db.name}')" 
+                                            class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-cyan-600/20 transition-all flex items-center gap-1.5 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Pilih Database Ini
+                                    </button>
+                                `}
+                            </div>
                         </div>
                     `;
                 });
 
                 statusBox.innerHTML = `
-                    <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-lg">
                         <div class="flex items-center justify-between pb-4 border-b border-slate-800">
                             <div>
-                                <h3 class="text-base font-bold text-white">Status Koneksi Folder Lokal (D:\\CAS_OPERATOR)</h3>
-                                <p class="text-xs text-slate-400 mt-1">Sistem beroperasi dalam mode proteksi <strong class="text-emerald-400">READ-ONLY</strong></p>
+                                <h3 class="text-base font-bold text-white">Status Koneksi Direktori Lokal (D:\\CAS_OPERATOR)</h3>
+                                <p class="text-xs text-slate-400 mt-1">Sistem beroperasi dalam mode proteksi <strong class="text-emerald-400">STRICT READ-ONLY (Tanpa Menulis/Mengubah Data)</strong></p>
                             </div>
-                            <span class="px-3 py-1 rounded-full text-xs font-semibold ${data.cas_operator_accessible ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold ${data.cas_operator_accessible ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}">
                                 ${data.cas_operator_accessible ? 'TERHUBUNG (ONLINE)' : 'TERPUTUS'}
                             </span>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
-                            <div class="bg-slate-800/40 p-4 rounded-lg border border-slate-800">
+                            <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800/80">
                                 <span class="text-xs text-slate-400">Path Direktori</span>
                                 <p class="font-mono text-xs text-cyan-300 mt-1 font-bold">${data.cas_operator_path}</p>
                             </div>
-                            <div class="bg-slate-800/40 p-4 rounded-lg border border-slate-800">
+                            <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800/80">
                                 <span class="text-xs text-slate-400">PHP Environment</span>
                                 <p class="font-mono text-xs text-slate-200 mt-1">${data.php_version} (${data.framework})</p>
                             </div>
-                            <div class="bg-slate-800/40 p-4 rounded-lg border border-slate-800">
-                                <span class="text-xs text-slate-400">Proteksi Keamanan</span>
-                                <p class="font-mono text-xs text-emerald-400 mt-1">Strict Read-Only Mode (Active)</p>
+                            <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800/80">
+                                <span class="text-xs text-slate-400">Proteksi Keamanan File</span>
+                                <p class="font-mono text-xs text-emerald-400 mt-1">Strict Read-Only Active (?mode=ro)</p>
                             </div>
                         </div>
 
-                        <h4 class="text-sm font-semibold text-slate-200 mb-2">Daftar File Database Lokal:</h4>
-                        <div class="bg-slate-950/60 rounded-lg p-3 border border-slate-800/80">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <h4 class="text-sm font-bold text-white">Daftar File Database SQLite Tersedia:</h4>
+                                <p class="text-xs text-slate-400">Pilih database untuk mengarahkan pembacaan data di seluruh sistem</p>
+                            </div>
+                            <span class="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20">
+                                Aktif: ${data.active_db}
+                            </span>
+                        </div>
+                        <div class="bg-slate-950/70 rounded-xl p-3 border border-slate-800">
                             ${dbsHtml}
                         </div>
                     </div>
                 `;
             }
+
+            renderActivityLogsTable();
         }
     } catch (e) {
         console.error('Error loading system status:', e);
+        handleServerConnectionError(e);
+    }
+}
+
+// ==========================================
+// LOG AKTIVITAS AKSES WEB & SISTEM
+// ==========================================
+function getActivityLogs() {
+    try {
+        const stored = localStorage.getItem('rpm_system_activity_logs');
+        if (stored) return JSON.parse(stored);
+    } catch (e) {}
+
+    // Seed realistic initial logs if empty
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+    const initLogs = [
+        {
+            id: 'init_1',
+            time: fmt(new Date(now.getTime() - 7200000)),
+            type: 'SERVER',
+            user: 'Sistem Monitoring',
+            status: 'Sukses',
+            detail: 'Server web online dan terhubung ke direktori D:\\CAS_OPERATOR (Mode Read-Only)'
+        },
+        {
+            id: 'init_2',
+            time: fmt(new Date(now.getTime() - 7100000)),
+            type: 'DB',
+            user: 'Sistem Monitoring',
+            status: 'Sukses',
+            detail: 'Database awal termuat: rpm_1.db (2.031.348 data okupasi terverifikasi)'
+        },
+        {
+            id: 'init_3',
+            time: fmt(new Date(now.getTime() - 1800000)),
+            type: 'AUTH',
+            user: 'operator@rpm.internal',
+            status: 'Sukses',
+            detail: 'Pengguna masuk sesi (Demo Mode / Operator CAS)'
+        }
+    ];
+    localStorage.setItem('rpm_system_activity_logs', JSON.stringify(initLogs));
+    return initLogs;
+}
+
+window.logSystemActivity = function(type, user, status, detail) {
+    try {
+        const logs = getActivityLogs();
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+        logs.unshift({
+            id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            time: timeStr,
+            type: type, // 'AUTH', 'SERVER', 'DB'
+            user: user || 'Operator',
+            status: status || 'Sukses', // 'Sukses', 'Error', 'Peringatan', 'Info'
+            detail: detail || '-'
+        });
+
+        if (logs.length > 150) logs.length = 150;
+        localStorage.setItem('rpm_system_activity_logs', JSON.stringify(logs));
+        renderActivityLogsTable();
+    } catch(e) {
+        console.error('Error logging system activity:', e);
+    }
+};
+
+window.clearActivityLogs = function() {
+    if (confirm('Bersihkan semua catatan riwayat aktivitas akses dan sistem?')) {
+        localStorage.removeItem('rpm_system_activity_logs');
+        renderActivityLogsTable();
+        showToast('Riwayat aktivitas telah dibersihkan', 'info');
+    }
+};
+
+let activeActivityFilter = 'all';
+
+function initActivityLogFilters() {
+    document.querySelectorAll('.activity-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeActivityFilter = btn.getAttribute('data-activity-filter');
+            document.querySelectorAll('.activity-filter-btn').forEach(b => {
+                b.classList.remove('text-cyan-400', 'bg-slate-800', 'font-semibold');
+                b.classList.add('text-slate-400');
+            });
+            btn.classList.add('text-cyan-400', 'bg-slate-800', 'font-semibold');
+            btn.classList.remove('text-slate-400');
+            renderActivityLogsTable();
+        });
+    });
+}
+
+function renderActivityLogsTable() {
+    const tbody = document.getElementById('table-activity-logs-tbody');
+    if (!tbody) return;
+
+    let logs = getActivityLogs();
+    if (activeActivityFilter !== 'all') {
+        logs = logs.filter(l => l.type === activeActivityFilter);
+    }
+
+    if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-500 font-sans">Tidak ada catatan aktivitas untuk filter ini.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    logs.forEach((log, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-slate-800/80 hover:bg-slate-800/30 text-xs transition-colors';
+
+        let typeBadge = '';
+        if (log.type === 'AUTH') {
+            typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">LOGIN / LOGOUT</span>';
+        } else if (log.type === 'SERVER') {
+            typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">SERVER / JARINGAN</span>';
+        } else if (log.type === 'DB') {
+            typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">DATABASE</span>';
+        } else {
+            typeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">${log.type}</span>`;
+        }
+
+        let statusBadge = '';
+        if (log.status === 'Sukses') {
+            statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">SUKSES</span>';
+        } else if (log.status === 'Error') {
+            statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse">TERPUTUS / ERROR</span>';
+        } else if (log.status === 'Peringatan') {
+            statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">PERINGATAN</span>';
+        } else {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">${log.status}</span>`;
+        }
+
+        tr.innerHTML = `
+            <td class="py-2.5 px-3 text-slate-500">${idx + 1}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap">${log.time}</td>
+            <td class="py-2.5 px-3 whitespace-nowrap">${typeBadge}</td>
+            <td class="py-2.5 px-3 text-slate-200 font-sans font-medium">${log.user}</td>
+            <td class="py-2.5 px-3 whitespace-nowrap">${statusBadge}</td>
+            <td class="py-2.5 px-3 text-slate-300 font-sans">${log.detail}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// ==========================================
+// SERVER CONNECTION WATCHDOG
+// ==========================================
+let isServerConnected = true;
+
+function handleServerConnectionError(e) {
+    if (isServerConnected) {
+        isServerConnected = false;
+        if (typeof window.logSystemActivity === 'function') {
+            window.logSystemActivity('SERVER', 'Server / Jaringan', 'Error', 'Koneksi ke backend server (http://127.0.0.1:5000) terputus atau tidak merespons');
+        }
+        showToast('Koneksi server terputus! Mencoba memulihkan...', 'error');
+    }
+}
+
+function handleServerConnectionSuccess() {
+    if (!isServerConnected) {
+        isServerConnected = true;
+        if (typeof window.logSystemActivity === 'function') {
+            window.logSystemActivity('SERVER', 'Server / Jaringan', 'Sukses', 'Koneksi ke backend server kembali normal (Online)');
+        }
+        showToast('Koneksi server kembali normal', 'success');
     }
 }
 

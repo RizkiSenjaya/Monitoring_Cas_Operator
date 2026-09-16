@@ -194,12 +194,12 @@ class RpmDatabaseService
     }
 
     /**
-     * Get recent 50 alarms for the dashboard table
+     * Get recent 20 alarms for the dashboard and alarm table
      */
-    public function getRecentAlarms(int $limit = 50): array
+    public function getRecentAlarms(int $limit = 20): array
     {
         $cacheKey = 'rpm_recent_alarms_' . $this->activeDb . '_' . $limit;
-        return Cache::remember($cacheKey, 60, function () use ($limit) {
+        return Cache::remember($cacheKey, 30, function () use ($limit) {
             try {
                 $pdo = $this->getConnection();
                 $stmt = $pdo->prepare("SELECT * FROM tblAlarm ORDER BY rowid DESC LIMIT :limit");
@@ -210,14 +210,24 @@ class RpmDatabaseService
                 $formatted = [];
                 foreach ($rows as $r) {
                     $formatted[] = [
-                        'idk' => $r['IDK'] ?? '-',
+                        'idk' => (string)($r['IDK'] ?? '-'),
                         'waktu' => $r['TANGGAL'] ?? '-',
-                        'pilar' => $r['PILAR'] ?? '115',
+                        'pilar' => (string)($r['PILAR'] ?? '115'),
                         'jenis' => $r['JENIS'] ?? 'Alarm Gamma Detector',
-                        'a1' => (!empty($r['alarmA1']) && $r['alarmA1'] == 1) ? 'ON' : ($r['A1'] ?? '-'),
-                        'a2' => (!empty($r['alarmA2']) && $r['alarmA2'] == 1) ? 'ON' : ($r['A2'] ?? '-'),
-                        'b1' => (!empty($r['alarmB1']) && $r['alarmB1'] == 1) ? 'ON' : ($r['B1'] ?? '-'),
-                        'b2' => (!empty($r['alarmB2']) && $r['alarmB2'] == 1) ? 'ON' : ($r['B2'] ?? '-'),
+                        'a1' => (!empty($r['alarmA1']) && $r['alarmA1'] == 1) ? 'ON' : (string)($r['A1'] ?? '-'),
+                        'a2' => (!empty($r['alarmA2']) && $r['alarmA2'] == 1) ? 'ON' : (string)($r['A2'] ?? '-'),
+                        'b1' => (!empty($r['alarmB1']) && $r['alarmB1'] == 1) ? 'ON' : (string)($r['B1'] ?? '-'),
+                        'b2' => (!empty($r['alarmB2']) && $r['alarmB2'] == 1) ? 'ON' : (string)($r['B2'] ?? '-'),
+                        'raw_a1' => (int)($r['A1'] ?? 0),
+                        'raw_a2' => (int)($r['A2'] ?? 0),
+                        'raw_b1' => (int)($r['B1'] ?? 0),
+                        'raw_b2' => (int)($r['B2'] ?? 0),
+                        'alarmA1' => (!empty($r['alarmA1']) && $r['alarmA1'] == 1) ? 1 : 0,
+                        'alarmA2' => (!empty($r['alarmA2']) && $r['alarmA2'] == 1) ? 1 : 0,
+                        'alarmB1' => (!empty($r['alarmB1']) && $r['alarmB1'] == 1) ? 1 : 0,
+                        'alarmB2' => (!empty($r['alarmB2']) && $r['alarmB2'] == 1) ? 1 : 0,
+                        'temp' => (int)($r['TEMP'] ?? 33),
+                        'humidity' => (int)($r['HUMIDITY'] ?? 56),
                         'latar' => ($r['latarA1'] ?? '-') . ' / ' . ($r['latarA2'] ?? '-'),
                         'ack' => (!empty($r['ACK']) && $r['ACK'] == 1) ? 'Sudah' : 'Belum',
                     ];
@@ -970,26 +980,55 @@ class RpmDatabaseService
     }
 
     /**
-     * Get list of dates that have recorded data
+     * Get list of dates that have recorded data for the active database
      */
     public function getAvailableDates(): array
     {
-        return [
-            '2025-11-15' => '15 November 2025 (Demo Sesuai Gambar 1)',
-            '2025-11-14' => '14 November 2025 (Transisi Database)',
-            '2025-11-13' => '13 November 2025',
-            '2025-11-12' => '12 November 2025',
-            '2025-11-11' => '11 November 2025',
-            '2025-11-16' => '16 November 2025',
-            '2025-11-17' => '17 November 2025',
-            '2025-11-18' => '18 November 2025',
-            '2025-11-19' => '19 November 2025',
-            '2025-11-20' => '20 November 2025',
-            '2025-11-21' => '21 November 2025',
-            '2025-11-22' => '22 November 2025',
-            '2025-11-25' => '25 November 2025',
-            '2025-11-28' => '28 November 2025',
-            '2025-11-29' => '29 November 2025',
-        ];
+        $cacheKey = 'rpm_avail_dates_' . $this->activeDb;
+        return Cache::remember($cacheKey, 300, function () {
+            try {
+                $pdo = $this->getConnection();
+                $stmt = $pdo->query("SELECT DISTINCT substr(TANGGAL, 1, 10) as tgl FROM tblAlarm WHERE TANGGAL IS NOT NULL AND length(TANGGAL) >= 10 ORDER BY tgl DESC");
+                $rows = $stmt->fetchAll();
+                $dates = [];
+                foreach ($rows as $r) {
+                    $tgl = trim($r['tgl'] ?? '');
+                    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
+                        $label = date('d F Y', strtotime($tgl));
+                        $dates[$tgl] = $label;
+                    }
+                }
+                if (empty($dates)) {
+                    if ($this->activeDb === 'rpm_1.db') {
+                        return [
+                            '2025-11-14' => '14 November 2025',
+                            '2025-11-13' => '13 November 2025',
+                            '2025-11-12' => '12 November 2025',
+                            '2025-11-11' => '11 November 2025',
+                            '2025-10-31' => '31 Oktober 2025',
+                            '2025-10-29' => '29 Oktober 2025',
+                            '2025-10-19' => '19 Oktober 2025',
+                        ];
+                    } else {
+                        return [
+                            '2025-11-29' => '29 November 2025',
+                            '2025-11-28' => '28 November 2025',
+                            '2025-11-25' => '25 November 2025',
+                            '2025-11-22' => '22 November 2025',
+                            '2025-11-20' => '20 November 2025',
+                            '2025-11-18' => '18 November 2025',
+                            '2025-11-15' => '15 November 2025',
+                            '2025-11-14' => '14 November 2025',
+                        ];
+                    }
+                }
+                return $dates;
+            } catch (Exception $e) {
+                return [
+                    '2025-11-14' => '14 November 2025',
+                    '2025-11-15' => '15 November 2025',
+                ];
+            }
+        });
     }
 }

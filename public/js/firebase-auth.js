@@ -72,12 +72,15 @@ class RPMAuthService {
         }
     }
 
-    setUser(userData) {
+    setUser(userData, isNewLogin = false) {
         this.currentUser = userData;
         localStorage.setItem('rpm_auth_user', JSON.stringify(userData));
         this.updateUI();
         if (typeof showToast === 'function') {
             showToast(`Selamat datang, ${userData.name}!`, 'success');
+        }
+        if (isNewLogin && typeof window.logSystemActivity === 'function') {
+            window.logSystemActivity('AUTH', userData.email || userData.name, 'Sukses', `Masuk berhasil (${userData.source || 'Email/Password'})`);
         }
     }
 
@@ -174,11 +177,12 @@ class RPMAuthService {
             email: 'operator@rpm.internal',
             photoURL: null,
             source: 'Demo'
-        });
+        }, true);
     }
 
     // Logout
     async logout() {
+        const userEmail = this.currentUser ? (this.currentUser.email || this.currentUser.name) : 'Operator';
         if (this.auth) {
             try {
                 await this.auth.signOut();
@@ -187,6 +191,9 @@ class RPMAuthService {
             }
         }
         this.clearUser();
+        if (typeof window.logSystemActivity === 'function') {
+            window.logSystemActivity('AUTH', userEmail, 'Info', 'Pengguna keluar dari sistem (Sign Out)');
+        }
         if (typeof showToast === 'function') {
             showToast('Anda telah keluar dari sesi.', 'info');
         }
