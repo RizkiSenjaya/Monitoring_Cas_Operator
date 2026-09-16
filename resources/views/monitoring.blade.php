@@ -748,7 +748,8 @@
                         <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg">
                             <div class="flex items-center justify-between mb-3">
                                 <h3 class="text-xs font-bold text-white uppercase tracking-wider">Vehicle List</h3>
-                                <button id="btn-tampil-profile" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded shadow">
+                                <button type="button" id="btn-tampil-profile" class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-bold text-xs rounded-lg shadow-sm shadow-cyan-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                     Tampil Profile
                                 </button>
                             </div>
@@ -823,7 +824,7 @@
                                 <span class="text-[11px] text-slate-400 font-mono">Tabel Tanggal & Profile (IDK)</span>
                             </div>
 
-                            <div class="overflow-x-auto max-h-56 border border-slate-800 rounded">
+                            <div class="overflow-x-auto max-h-64 border border-slate-800 rounded-lg">
                                 <table class="w-full text-left text-xs">
                                     <thead class="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold sticky top-0">
                                         <tr>

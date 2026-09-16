@@ -1554,8 +1554,10 @@ function initHistorisCalendar() {
     const btnTampilProfile = document.getElementById('btn-tampil-profile');
     if (btnTampilProfile) {
         btnTampilProfile.addEventListener('click', () => {
-            if (state.selectedIdk) {
-                loadHistorisProfile(state.selectedIdk);
+            const targetIdk = state.selectedIdk || (state.currentVehicles && state.currentVehicles.length ? state.currentVehicles[0].idk : null);
+            if (targetIdk) {
+                selectHistorisVehicle(targetIdk);
+                showToast(`Menampilkan foto snapshot & profil radiasi kendaraan ${targetIdk}`, 'info');
             } else {
                 showToast('Pilih kendaraan dari Vehicle List terlebih dahulu', 'warning');
             }
@@ -1580,6 +1582,23 @@ function initHistorisCalendar() {
     loadHistorisVehicles(state.selectedDate);
 }
 
+// Select a vehicle: highlights row, updates camera photo snapshot, radiation chart, and detail table
+function selectHistorisVehicle(idk) {
+    if (!idk) return;
+    state.selectedIdk = String(idk);
+
+    document.querySelectorAll('#vehicle-list-tbody tr').forEach(row => {
+        if (row.getAttribute('data-idk') === String(idk)) {
+            row.classList.add('bg-blue-900/50', 'text-cyan-300', 'font-semibold');
+        } else {
+            row.classList.remove('bg-blue-900/50', 'text-cyan-300', 'font-semibold');
+        }
+    });
+
+    loadHistorisProfile(idk);
+}
+window.selectHistorisVehicle = selectHistorisVehicle;
+
 async function loadHistorisVehicles(dateStr) {
     try {
         const tbody = document.getElementById('vehicle-list-tbody');
@@ -1594,24 +1613,20 @@ async function loadHistorisVehicles(dateStr) {
             tbody.innerHTML = '';
             json.data.forEach((v, idx) => {
                 const tr = document.createElement('tr');
-                tr.className = `border-b border-slate-700/60 hover:bg-blue-900/30 cursor-pointer text-xs transition-colors ${v.idk === state.selectedIdk ? 'bg-blue-900/50 text-cyan-300 font-semibold' : 'text-slate-300'}`;
+                const isSelected = String(v.idk) === String(state.selectedIdk);
+                tr.className = `border-b border-slate-700/60 hover:bg-blue-900/30 cursor-pointer text-xs transition-colors ${isSelected ? 'bg-blue-900/50 text-cyan-300 font-semibold' : 'text-slate-300'}`;
                 tr.setAttribute('data-idk', v.idk);
                 tr.innerHTML = `
                     <td class="py-1.5 px-2 text-center text-slate-400">${v.no}</td>
                     <td class="py-1.5 px-2 text-center">
-                        <button class="px-2 py-0.5 bg-slate-700 hover:bg-cyan-600 text-[10px] rounded text-white font-mono">Detail</button>
+                        <button type="button" onclick="event.stopPropagation(); selectHistorisVehicle('${v.idk}')" class="px-2.5 py-0.5 bg-cyan-700 hover:bg-cyan-600 active:bg-cyan-800 text-[10px] rounded text-white font-mono font-semibold cursor-pointer shadow-sm transition-all">Detail</button>
                     </td>
                     <td class="py-1.5 px-2 font-mono font-bold">${v.idk}</td>
                     <td class="py-1.5 px-2 font-mono text-slate-400">${v.tgl}</td>
                 `;
 
                 tr.addEventListener('click', () => {
-                    document.querySelectorAll('#vehicle-list-tbody tr').forEach(row => {
-                        row.classList.remove('bg-blue-900/50', 'text-cyan-300', 'font-semibold');
-                    });
-                    tr.classList.add('bg-blue-900/50', 'text-cyan-300', 'font-semibold');
-                    state.selectedIdk = v.idk;
-                    loadHistorisProfile(v.idk);
+                    selectHistorisVehicle(v.idk);
                 });
 
                 tbody.appendChild(tr);
@@ -1619,13 +1634,17 @@ async function loadHistorisVehicles(dateStr) {
 
             // Automatically load first record if none selected or not in list
             const firstIdk = json.data[0].idk;
-            if (!state.selectedIdk || !json.data.some(x => x.idk === state.selectedIdk)) {
-                state.selectedIdk = firstIdk;
+            if (!state.selectedIdk || !json.data.some(x => String(x.idk) === String(state.selectedIdk))) {
+                state.selectedIdk = String(firstIdk);
             }
-            loadHistorisProfile(state.selectedIdk);
+            selectHistorisVehicle(state.selectedIdk);
         } else {
             state.currentVehicles = [];
             tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-500">Tidak ada data kendaraan pada tanggal ini di ${state.activeDb}.</td></tr>`;
+            const profileTbody = document.getElementById('profile-grid-tbody') || document.getElementById('profile-detail-tbody');
+            if (profileTbody) {
+                profileTbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500">Pilih kendaraan untuk menampilkan grid profile.</td></tr>';
+            }
         }
     } catch (e) {
         console.error('Error fetching vehicles:', e);
@@ -1634,7 +1653,7 @@ async function loadHistorisVehicles(dateStr) {
 
 async function loadHistorisProfile(idk) {
     try {
-        state.selectedIdk = idk;
+        state.selectedIdk = String(idk);
 
         // 1. Update Camera 01 Vehicle Snapshot image
         const imgEl = document.getElementById('vehicle-snapshot-img');
@@ -1642,17 +1661,16 @@ async function loadHistorisProfile(idk) {
         if (imgEl) {
             imgEl.src = `/api/historis/snapshot/${idk}?t=${Date.now()}`;
         }
-        if (imgBannerTime) {
+        if (imgBannerTime && String(idk).length >= 12) {
             // format timestamp from IDK: YYMMDDHHMMSS -> MM-DD-YYYY HH:MM:SS
-            if (idk.length >= 12) {
-                const yy = idk.substring(0, 2);
-                const mm = idk.substring(2, 4);
-                const dd = idk.substring(4, 6);
-                const hh = idk.substring(6, 8);
-                const mi = idk.substring(8, 10);
-                const ss = idk.substring(10, 12);
-                imgBannerTime.textContent = `1-${mm}-20${yy}, ${hh}:${mi}:${ss} Camera 01`;
-            }
+            const sIdk = String(idk);
+            const yy = sIdk.substring(0, 2);
+            const mm = sIdk.substring(2, 4);
+            const dd = sIdk.substring(4, 6);
+            const hh = sIdk.substring(6, 8);
+            const mi = sIdk.substring(8, 10);
+            const ss = sIdk.substring(10, 12);
+            imgBannerTime.textContent = `1-${mm}-20${yy}, ${hh}:${mi}:${ss} Camera 01`;
         }
 
         // 2. Fetch vehicle profile time-series from database
@@ -1661,29 +1679,33 @@ async function loadHistorisProfile(idk) {
         if (json.status === 'success') {
             const data = json.data;
 
-            // Render detail table
-            const tbody = document.getElementById('profile-detail-tbody');
+            // Render detail table (Gambar 2 replica)
+            const tbody = document.getElementById('profile-grid-tbody') || document.getElementById('profile-detail-tbody');
             if (tbody) {
                 tbody.innerHTML = '';
-                data.table_data.forEach(r => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'border-b border-slate-700/40 text-xs font-mono';
-                    tr.innerHTML = `
-                        <td class="py-1 px-2 text-cyan-300">${r.IDK}</td>
-                        <td class="py-1 px-2 text-slate-400">${r.TANGGAL}</td>
-                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.A1)}</td>
-                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.A2)}</td>
-                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.B1)}</td>
-                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.B2)}</td>
-                        <td class="py-1 px-2 text-slate-400">${formatNumber(r.latarA1)}</td>
-                        <td class="py-1 px-2 text-slate-400">${formatNumber(r.latarA2)}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
+                if (!data.table_data || data.table_data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="py-4 text-center text-slate-500">Tidak ada baris data profile untuk IDK ${idk}.</td></tr>`;
+                } else {
+                    data.table_data.forEach(r => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'border-b border-slate-700/40 text-xs font-mono hover:bg-slate-800/40 transition-colors';
+                        tr.innerHTML = `
+                            <td class="py-1 px-2.5 text-cyan-300 font-bold">${r.IDK || idk}</td>
+                            <td class="py-1 px-2.5 text-slate-300">${r.TANGGAL}</td>
+                            <td class="py-1 px-2.5 text-blue-400 font-semibold">${formatNumber(r.A1)}</td>
+                            <td class="py-1 px-2.5 text-emerald-400 font-semibold">${formatNumber(r.A2)}</td>
+                            <td class="py-1 px-2.5 text-yellow-400 font-semibold">${formatNumber(r.B1)}</td>
+                            <td class="py-1 px-2.5 text-rose-400 font-semibold">${formatNumber(r.B2)}</td>
+                            <td class="py-1 px-2.5 text-slate-400">${formatNumber(r.latarA1)}</td>
+                            <td class="py-1 px-2.5 text-slate-400">${formatNumber(r.latarA2)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
             }
 
             // Render vehicle radiation profile chart
-            const ctx = document.getElementById('chart-historis-profile');
+            const ctx = document.getElementById('chart-profile-lines') || document.getElementById('chart-historis-profile');
             if (ctx && data.chart_data) {
                 if (state.charts.profile) state.charts.profile.destroy();
                 state.charts.profile = new Chart(ctx, {
@@ -1728,15 +1750,16 @@ async function loadHistorisProfile(idk) {
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
                         plugins: {
                             legend: {
-                                position: 'top',
-                                align: 'end',
-                                labels: {
-                                    boxWidth: 14,
-                                    color: '#E2E8F0',
-                                    font: { size: 11, weight: '600' }
-                                }
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: '#0F172A',
+                                titleColor: '#F8FAFC',
+                                borderColor: '#334155',
+                                borderWidth: 1
                             }
                         },
                         scales: {
