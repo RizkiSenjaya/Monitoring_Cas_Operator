@@ -1030,60 +1030,70 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Pilar 115 -->
                     <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-6 shadow-lg">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-base font-bold text-cyan-400">Pilar 115 (Portal Sisi Kiri)</h3>
-                            <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400">ONLINE</span>
+                        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
+                            <div>
+                                <h3 class="text-base font-bold text-cyan-400">Pilar 115 (Portal Sisi Kiri)</h3>
+                                <p class="text-[11px] text-slate-400 font-mono mt-0.5">Rekaman Terakhir: <span id="pilar115-last-time" class="text-cyan-300 font-semibold">2025-11-14 09:56:26</span></p>
+                            </div>
+                            <span class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 font-mono flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span> Data Terakhir
+                            </span>
                         </div>
                         <div class="space-y-3 text-xs">
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Detector A1 (Atas)</span>
-                                <span class="font-mono text-slate-200 font-bold">1.160 cps (Threshold: 1.250)</span>
+                                <span id="pilar115-a1" class="font-mono text-slate-200 font-bold">1.160 cps (Threshold: 1.250)</span>
                             </div>
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Detector A2 (Bawah)</span>
-                                <span class="font-mono text-slate-200 font-bold">940 cps (Threshold: 1.100)</span>
+                                <span id="pilar115-a2" class="font-mono text-slate-200 font-bold">940 cps (Threshold: 1.100)</span>
                             </div>
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Latar Alami (Background)</span>
-                                <span class="font-mono text-slate-400">1095 / 989 cps</span>
+                                <span id="pilar115-latar" class="font-mono text-slate-400">1095 / 989 cps</span>
                             </div>
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Suhu Internal</span>
-                                <span class="font-mono text-slate-200">35.2 °C</span>
+                                <span id="pilar115-temp" class="font-mono text-slate-200">35.2 °C</span>
                             </div>
                             <div class="flex justify-between py-1.5">
                                 <span class="text-slate-400">Kelembaban Relatif (RH)</span>
-                                <span class="font-mono text-slate-200">44.2 %</span>
+                                <span id="pilar115-humidity" class="font-mono text-slate-200">44.2 %</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Pilar 116 -->
                     <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-6 shadow-lg">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-base font-bold text-blue-400">Pilar 116 (Portal Sisi Kanan)</h3>
-                            <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400">ONLINE</span>
+                        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
+                            <div>
+                                <h3 class="text-base font-bold text-blue-400">Pilar 116 (Portal Sisi Kanan)</h3>
+                                <p class="text-[11px] text-slate-400 font-mono mt-0.5">Rekaman Terakhir: <span id="pilar116-last-time" class="text-blue-300 font-semibold">2025-11-14 09:56:26</span></p>
+                            </div>
+                            <span class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 font-mono flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-blue-400"></span> Data Terakhir
+                            </span>
                         </div>
                         <div class="space-y-3 text-xs">
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Detector B1 (Atas)</span>
-                                <span class="font-mono text-slate-200 font-bold">1.050 cps (Threshold: 1.250)</span>
+                                <span id="pilar116-b1" class="font-mono text-slate-200 font-bold">1.050 cps (Threshold: 1.250)</span>
                             </div>
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Detector B2 (Bawah)</span>
-                                <span class="font-mono text-slate-200 font-bold">850 cps (Threshold: 1.100)</span>
+                                <span id="pilar116-b2" class="font-mono text-slate-200 font-bold">850 cps (Threshold: 1.100)</span>
                             </div>
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Latar Alami (Background)</span>
-                                <span class="font-mono text-slate-400">1005 / 896 cps</span>
+                                <span id="pilar116-latar" class="font-mono text-slate-400">1005 / 896 cps</span>
                             </div>
                             <div class="flex justify-between py-1.5 border-b border-slate-800">
                                 <span class="text-slate-400">Suhu Internal</span>
-                                <span class="font-mono text-slate-200">37.3 °C</span>
+                                <span id="pilar116-temp" class="font-mono text-slate-200">37.3 °C</span>
                             </div>
                             <div class="flex justify-between py-1.5">
                                 <span class="text-slate-400">Kelembaban Relatif (RH)</span>
-                                <span class="font-mono text-slate-200">45.0 %</span>
+                                <span id="pilar116-humidity" class="font-mono text-slate-200">45.0 %</span>
                             </div>
                         </div>
                     </div>

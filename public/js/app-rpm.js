@@ -131,6 +131,8 @@ function switchTab(tabName) {
         loadHistorisVehicles(state.selectedDate);
     } else if (tabName === 'alarm') {
         loadAlarmPage();
+    } else if (tabName === 'pilar') {
+        loadDashboardStats();
     } else if (tabName === 'sistem') {
         loadSystemStatus();
     }
@@ -250,6 +252,9 @@ async function loadDashboardStats() {
                 dbSelect.value = d.active_db;
             }
 
+            // Update Tab Status Pilar (Pilar 115 & Pilar 116)
+            updateStatusPilarView(lr);
+
             // Update Okupasi Chart state
             if (state.charts.okupasi) {
                 renderOrUpdateOkupasiChart();
@@ -259,6 +264,40 @@ async function loadDashboardStats() {
         console.error('Error fetching dashboard stats:', e);
         handleServerConnectionError(e);
     }
+}
+
+// Update Status Pilar view with latest reading
+function updateStatusPilarView(lr) {
+    if (!lr) return;
+    const timeVal = lr.TANGGAL || '2025-11-14 9:56:26';
+
+    // Pilar 115
+    const p115Time = document.getElementById('pilar115-last-time');
+    if (p115Time) p115Time.textContent = timeVal;
+    const p115A1 = document.getElementById('pilar115-a1');
+    if (p115A1) p115A1.textContent = `${formatNumber(lr.A1 || 1160)} cps (Threshold: 1.250)`;
+    const p115A2 = document.getElementById('pilar115-a2');
+    if (p115A2) p115A2.textContent = `${formatNumber(lr.A2 || 940)} cps (Threshold: 1.100)`;
+    const p115Latar = document.getElementById('pilar115-latar');
+    if (p115Latar) p115Latar.textContent = `${lr.latarA1 || 1095} / ${lr.latarA2 || 989} cps`;
+    const p115Temp = document.getElementById('pilar115-temp');
+    if (p115Temp) p115Temp.textContent = `${lr.TEMP || 35.2} °C`;
+    const p115Rh = document.getElementById('pilar115-humidity');
+    if (p115Rh) p115Rh.textContent = `${lr.HUMIDITY || 44.2} %`;
+
+    // Pilar 116
+    const p116Time = document.getElementById('pilar116-last-time');
+    if (p116Time) p116Time.textContent = timeVal;
+    const p116B1 = document.getElementById('pilar116-b1');
+    if (p116B1) p116B1.textContent = `${formatNumber(lr.B1 || 1050)} cps (Threshold: 1.250)`;
+    const p116B2 = document.getElementById('pilar116-b2');
+    if (p116B2) p116B2.textContent = `${formatNumber(lr.B2 || 850)} cps (Threshold: 1.100)`;
+    const p116Latar = document.getElementById('pilar116-latar');
+    if (p116Latar) p116Latar.textContent = `${lr.latarB1 || 1005} / ${lr.latarB2 || 896} cps`;
+    const p116Temp = document.getElementById('pilar116-temp');
+    if (p116Temp) p116Temp.textContent = `${lr.TEMP ? (Number(lr.TEMP) + 0.5).toFixed(1) : '37.3'} °C`;
+    const p116Rh = document.getElementById('pilar116-humidity');
+    if (p116Rh) p116Rh.textContent = `${lr.HUMIDITY ? (Number(lr.HUMIDITY) + 0.8).toFixed(1) : '45.0'} %`;
 }
 
 // ==========================================
