@@ -421,14 +421,85 @@
                     </div>
                 </div>
 
+                <!-- Integrated Time Range & Filter Bar for Historis Okupasi & Alarm -->
+                <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-3.5 shadow-lg flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mr-1">
+                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                            </svg>
+                            Filter Historis:
+                        </span>
+
+                        <!-- Mode Segmented Buttons -->
+                        <div class="inline-flex rounded-lg bg-slate-900/90 p-1 border border-slate-700/60" id="historis-mode-buttons">
+                            <button type="button" data-mode="1hour" class="filter-mode-btn px-3 py-1 rounded-md text-xs font-bold transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm">
+                                <span class="w-2 h-2 rounded-full bg-cyan-400 inline-block mr-1 pulse-live"></span>
+                                LIVE 1 Jam
+                            </button>
+                            <button type="button" data-mode="hour" class="filter-mode-btn px-3 py-1 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-slate-200">
+                                Per Jam
+                            </button>
+                            <button type="button" data-mode="day" class="filter-mode-btn px-3 py-1 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-slate-200">
+                                Per Hari
+                            </button>
+                            <button type="button" data-mode="month" class="filter-mode-btn px-3 py-1 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-slate-200">
+                                Per Bulan
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Filter Controls -->
+                    <div class="flex items-center gap-2 flex-wrap" id="historis-filter-controls">
+                        <!-- Date Input (for Hour & Day modes) -->
+                        <div id="filter-date-group" class="hidden items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg">
+                            <span class="text-[11px] text-slate-400">Tanggal:</span>
+                            <input type="date" id="filter-date-input" value="2025-11-14" 
+                                   class="bg-transparent text-xs text-cyan-300 font-mono focus:outline-none cursor-pointer">
+                        </div>
+
+                        <!-- Hour Dropdown (for Hour mode) -->
+                        <div id="filter-hour-group" class="hidden items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg">
+                            <span class="text-[11px] text-slate-400">Jam:</span>
+                            <select id="filter-hour-select" class="bg-transparent text-xs text-cyan-300 font-mono focus:outline-none cursor-pointer">
+                                <!-- Populated dynamically 00:00 - 23:00 -->
+                            </select>
+                        </div>
+
+                        <!-- Month Dropdown (for Month mode) -->
+                        <div id="filter-month-group" class="hidden items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg">
+                            <span class="text-[11px] text-slate-400">Bulan:</span>
+                            <select id="filter-month-select" class="bg-transparent text-xs text-cyan-300 font-mono focus:outline-none cursor-pointer">
+                                <option value="2025-11" selected class="bg-slate-900 text-slate-200">November 2025</option>
+                                <option value="2025-10" class="bg-slate-900 text-slate-200">Oktober 2025</option>
+                            </select>
+                        </div>
+
+                        <!-- Apply Button -->
+                        <button type="button" id="btn-apply-historis-filter" 
+                                class="hidden px-3.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold shadow-sm shadow-cyan-600/30 transition-all flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Terapkan
+                        </button>
+
+                        <!-- Live Streaming Indicator (when mode is 1hour) -->
+                        <div id="filter-live-indicator" class="flex items-center gap-2 px-2.5 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-[11px] text-cyan-300 font-mono">
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 pulse-live"></span>
+                            <span>STREAMING REAL-TIME 1 JAM (1s INTERVAL)</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 2 Top Graphs (Historis Okupasi & Historis Alarm - Image 3) -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <!-- Chart Historis Okupasi -->
                     <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-5 shadow-lg">
                         <div class="mb-3 flex justify-between items-center">
                             <div>
-                                <h3 class="text-sm font-bold text-white">Historis Okupasi</h3>
-                                <p class="text-xs text-slate-400">Real-time sliding window (prioritas data baru)</p>
+                                <h3 id="okupasi-chart-title" class="text-sm font-bold text-white">Historis Okupasi</h3>
+                                <p id="okupasi-chart-subtitle" class="text-xs text-slate-400">Real-time sliding window 1 jam terakhir tiap detik</p>
                             </div>
                             <span id="okupasi-alarm-badge" class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition-all">
                                 NORMAL REAL-TIME
@@ -441,9 +512,14 @@
 
                     <!-- Chart Historis Alarm -->
                     <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-5 shadow-lg">
-                        <div class="mb-3">
-                            <h3 class="text-sm font-bold text-white">Historis Alarm</h3>
-                            <p class="text-xs text-slate-400">Event per hari</p>
+                        <div class="mb-3 flex justify-between items-center">
+                            <div>
+                                <h3 id="alarm-chart-title" class="text-sm font-bold text-white">Historis Alarm</h3>
+                                <p id="alarm-chart-subtitle" class="text-xs text-slate-400">Event alarm 1 jam terakhir per menit</p>
+                            </div>
+                            <span id="alarm-rate-badge" class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition-all">
+                                LIVE 1 JAM
+                            </span>
                         </div>
                         <div class="h-60">
                             <canvas id="chart-alarm"></canvas>

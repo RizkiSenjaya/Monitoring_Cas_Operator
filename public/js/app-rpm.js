@@ -11,11 +11,17 @@ const state = {
     selectedIdk: '251115095949',
     refreshInterval: null,
     realtimeInterval: null,
+    realtime1sInterval: null,
     charts: {},
     allAlarms: [],
     activeAlarmFilter: 'all',
+    historisFilterMode: '1hour', // '1hour' | 'hour' | 'day' | 'month'
+    filterDate: '2025-11-14',
+    filterHour: 8,
+    filterMonth: '2025-11',
     okupasiBuffer: [], // sliding window buffer: Array of { label, value, hasAlarm }
-    maxOkupasiPoints: 16,
+    alarmBuffer: [], // sliding window buffer: Array of { label, count }
+    maxOkupasiPoints: 35,
     isAlarmActive: false
 };
 
@@ -56,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initHistorisCalendar();
     initDatabaseSwitcher();
     initAlarmFilters();
+    initHistorisFilterBar();
     startRealtimePolling();
 });
 
@@ -124,6 +131,7 @@ function switchTab(tabName) {
 function initDashboard() {
     loadDashboardStats();
     loadDashboardCharts();
+    loadTelemetryCharts();
     loadRecentAlarms();
 
     const refreshBtn = document.getElementById('btn-refresh-dashboard');
@@ -132,6 +140,7 @@ function initDashboard() {
             showToast('Memperbarui data dashboard...', 'info');
             loadDashboardStats();
             loadDashboardCharts();
+            loadTelemetryCharts();
             loadRecentAlarms(true);
         });
     }
@@ -180,15 +189,189 @@ async function loadDashboardStats() {
     }
 }
 
+// ==========================================
+// TIME RANGE FILTER & REAL-TIME ENGINE (1 JAM TERAKHIR TIAP DETIK)
+// ==========================================
+
+function initHistorisFilterBar() {
+    // 1. Populate hour select (00:00 - 23:00)
+    const hourSelect = document.getElementById('filter-hour-select');
+    if (hourSelect && hourSelect.children.length === 0) {
+        for (let h = 0; h < 24; h++) {
+            const hStr = h.toString().padStart(2, '0');
+            const hNext = ((h + 1) % 24).toString().padStart(2, '0');
+            const opt = document.createElement('option');
+            opt.value = h;
+            opt.className = 'bg-slate-900 text-slate-200';
+            opt.textContent = `${hStr}:00 - ${hNext}:00`;
+            if (h === 8) opt.selected = true;
+            hourSelect.appendChild(opt);
+        }
+    }
+
+    // 2. Mode buttons click handlers
+    const modeButtons = document.querySelectorAll('#historis-mode-buttons button');
+    modeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-mode');
+            setHistorisMode(mode);
+        });
+    });
+
+    // 3. Apply button click handler
+    const applyBtn = document.getElementById('btn-apply-historis-filter');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+            loadHistoricalChartsFiltered(state.historisFilterMode);
+        });
+    }
+}
+
+function setHistorisMode(mode) {
+    state.historisFilterMode = mode;
+
+    // Update segmented buttons visual
+    document.querySelectorAll('#historis-mode-buttons button').forEach(b => {
+        const isSelected = b.getAttribute('data-mode') === mode;
+        if (isSelected) {
+            b.className = 'filter-mode-btn px-3 py-1 rounded-md text-xs font-bold transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm';
+            if (mode === '1hour') {
+                b.innerHTML = '<span class="w-2 h-2 rounded-full bg-cyan-400 inline-block mr-1 pulse-live"></span>LIVE 1 Jam';
+            }
+        } else {
+            b.className = 'filter-mode-btn px-3 py-1 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-slate-200';
+            if (b.getAttribute('data-mode') === '1hour') {
+                b.textContent = 'LIVE 1 Jam';
+            }
+        }
+    });
+
+    const liveIndicator = document.getElementById('filter-live-indicator');
+    const dateGroup = document.getElementById('filter-date-group');
+    const hourGroup = document.getElementById('filter-hour-group');
+    const monthGroup = document.getElementById('filter-month-group');
+    const applyBtn = document.getElementById('btn-apply-historis-filter');
+
+    if (mode === '1hour') {
+        if (liveIndicator) liveIndicator.classList.remove('hidden');
+        if (dateGroup) dateGroup.classList.add('hidden');
+        if (hourGroup) hourGroup.classList.add('hidden');
+        if (monthGroup) monthGroup.classList.add('hidden');
+        if (applyBtn) applyBtn.classList.add('hidden');
+
+        showToast('Mode LIVE 1 Jam Terakhir tiap detik aktif', 'info');
+        loadHistoricalChartsFiltered('1hour');
+    } else if (mode === 'hour') {
+        if (liveIndicator) liveIndicator.classList.add('hidden');
+        if (dateGroup) dateGroup.classList.remove('hidden');
+        if (hourGroup) hourGroup.classList.remove('hidden');
+        if (monthGroup) monthGroup.classList.add('hidden');
+        if (applyBtn) applyBtn.classList.remove('hidden');
+
+        loadHistoricalChartsFiltered('hour');
+    } else if (mode === 'day') {
+        if (liveIndicator) liveIndicator.classList.add('hidden');
+        if (dateGroup) dateGroup.classList.remove('hidden');
+        if (hourGroup) hourGroup.classList.add('hidden');
+        if (monthGroup) monthGroup.classList.add('hidden');
+        if (applyBtn) applyBtn.classList.remove('hidden');
+
+        loadHistoricalChartsFiltered('day');
+    } else if (mode === 'month') {
+        if (liveIndicator) liveIndicator.classList.add('hidden');
+        if (dateGroup) dateGroup.classList.add('hidden');
+        if (hourGroup) hourGroup.classList.add('hidden');
+        if (monthGroup) monthGroup.classList.remove('hidden');
+        if (applyBtn) applyBtn.classList.remove('hidden');
+
+        loadHistoricalChartsFiltered('month');
+    }
+}
+
 async function loadDashboardCharts() {
+    loadHistoricalChartsFiltered(state.historisFilterMode || '1hour');
+}
+
+async function loadHistoricalChartsFiltered(mode) {
+    const dateInput = document.getElementById('filter-date-input');
+    const hourSelect = document.getElementById('filter-hour-select');
+    const monthSelect = document.getElementById('filter-month-select');
+
+    const dateVal = dateInput ? dateInput.value : '2025-11-14';
+    const hourVal = hourSelect ? hourSelect.value : '8';
+    const monthVal = monthSelect ? monthSelect.value : '2025-11';
+
+    let url = `/api/dashboard/charts-filtered?mode=${mode}`;
+    if (mode === 'hour') url += `&date=${dateVal}&hour=${hourVal}`;
+    if (mode === 'day') url += `&date=${dateVal}`;
+    if (mode === 'month') url += `&month=${monthVal}`;
+
     try {
-        const res = await fetch('/api/dashboard/charts');
+        const res = await fetch(url);
         const json = await res.json();
         if (json.status === 'success') {
-            renderDashboardCharts(json.data);
+            const d = json.data;
+
+            // Update card titles and subtitles
+            const okTitle = document.getElementById('okupasi-chart-title');
+            if (okTitle) okTitle.textContent = d.title_okupasi || 'Historis Okupasi';
+            const okSubtitle = document.getElementById('okupasi-chart-subtitle');
+            if (okSubtitle) okSubtitle.textContent = d.subtitle_okupasi || 'Real-time sliding window (prioritas data baru)';
+
+            const alTitle = document.getElementById('alarm-chart-title');
+            if (alTitle) alTitle.textContent = d.title_alarm || 'Historis Alarm';
+            const alSubtitle = document.getElementById('alarm-chart-subtitle');
+            if (alSubtitle) alSubtitle.textContent = d.subtitle_alarm || 'Event per hari';
+
+            const rawLabels = d.labels || [];
+            const rawOkupasi = d.okupasi?.series || [];
+            const rawAlarms = d.okupasi?.alarms || [];
+            const rawAlarmCounts = d.alarm?.series || [];
+
+            if (mode === '1hour') {
+                state.okupasiBuffer = [];
+                state.alarmBuffer = [];
+                for (let i = 0; i < rawLabels.length; i++) {
+                    state.okupasiBuffer.push({
+                        label: rawLabels[i],
+                        value: rawOkupasi[i],
+                        hasAlarm: !!rawAlarms[i]
+                    });
+                    state.alarmBuffer.push({
+                        label: rawLabels[i],
+                        count: rawAlarmCounts[i] || 0
+                    });
+                }
+
+                renderOrUpdateOkupasiChart();
+                renderOrUpdateAlarmChart();
+
+                // Start 1-second real-time streaming
+                start1SecondStreaming();
+            } else {
+                // Stop 1-second streaming in filtered historical mode
+                stop1SecondStreaming();
+
+                state.okupasiBuffer = [];
+                state.alarmBuffer = [];
+                for (let i = 0; i < rawLabels.length; i++) {
+                    state.okupasiBuffer.push({
+                        label: rawLabels[i],
+                        value: rawOkupasi[i],
+                        hasAlarm: !!rawAlarms[i]
+                    });
+                    state.alarmBuffer.push({
+                        label: rawLabels[i],
+                        count: rawAlarmCounts[i] || 0
+                    });
+                }
+
+                renderOrUpdateOkupasiChart(rawLabels, rawOkupasi, rawAlarms);
+                renderOrUpdateAlarmChart(rawLabels, rawAlarmCounts);
+            }
         }
     } catch (e) {
-        console.error('Error fetching dashboard charts:', e);
+        console.error('Error fetching filtered charts:', e);
     }
 }
 
@@ -201,7 +384,6 @@ function pushOkupasiSample(label, value, hasAlarm) {
         hasAlarm: !!hasAlarm
     });
 
-    // Shift oldest item to prevent accumulation & prioritize newest
     while (state.okupasiBuffer.length > state.maxOkupasiPoints) {
         state.okupasiBuffer.shift();
     }
@@ -209,11 +391,41 @@ function pushOkupasiSample(label, value, hasAlarm) {
     renderOrUpdateOkupasiChart();
 }
 
+function pushAlarmSample(label, count) {
+    if (!state.alarmBuffer) state.alarmBuffer = [];
+    state.alarmBuffer.push({
+        label: label,
+        count: count || 0
+    });
+
+    while (state.alarmBuffer.length > state.maxOkupasiPoints) {
+        state.alarmBuffer.shift();
+    }
+
+    renderOrUpdateAlarmChart();
+}
+
 // Render or smooth update Historis Okupasi
 // Retains the original blue/cyan graphics, with red gradient ONLY in the area where alarms appear
-function renderOrUpdateOkupasiChart() {
+function renderOrUpdateOkupasiChart(customLabels, customSeries, customAlarms) {
     const canvas = document.getElementById('chart-okupasi');
-    if (!canvas || !state.okupasiBuffer || state.okupasiBuffer.length === 0) return;
+    if (!canvas) return;
+
+    let labels = [];
+    let seriesOkupasi = [];
+    let hasAlarmFlags = [];
+
+    if (customLabels && customSeries) {
+        labels = customLabels;
+        seriesOkupasi = customSeries;
+        hasAlarmFlags = customAlarms || customSeries.map(() => false);
+    } else if (state.okupasiBuffer && state.okupasiBuffer.length > 0) {
+        labels = state.okupasiBuffer.map(p => p.label);
+        seriesOkupasi = state.okupasiBuffer.map(p => p.value);
+        hasAlarmFlags = state.okupasiBuffer.map(p => p.hasAlarm);
+    } else {
+        return;
+    }
 
     const ctx = canvas.getContext('2d');
     const height = canvas.clientHeight || 240;
@@ -230,21 +442,18 @@ function renderOrUpdateOkupasiChart() {
     redGradient.addColorStop(0.65, 'rgba(239, 68, 68, 0.18)');
     redGradient.addColorStop(1, 'rgba(239, 68, 68, 0.00)');
 
-    const labels = state.okupasiBuffer.map(p => p.label);
-    const seriesOkupasi = state.okupasiBuffer.map(p => p.value);
-
     // Alarm overlay dataset: only has values on points where an alarm occurred and their immediate transitions
-    const seriesAlarm = state.okupasiBuffer.map((p, idx) => {
-        const isSelfAlarm = p.hasAlarm;
-        const isPrevAlarm = state.okupasiBuffer[idx - 1]?.hasAlarm;
-        const isNextAlarm = state.okupasiBuffer[idx + 1]?.hasAlarm;
+    const seriesAlarm = seriesOkupasi.map((pVal, idx) => {
+        const isSelfAlarm = hasAlarmFlags[idx];
+        const isPrevAlarm = hasAlarmFlags[idx - 1];
+        const isNextAlarm = hasAlarmFlags[idx + 1];
         if (isSelfAlarm || isPrevAlarm || isNextAlarm) {
-            return p.value;
+            return pVal;
         }
         return null;
     });
 
-    const hasAnyAlarm = state.okupasiBuffer.some(p => p.hasAlarm) || state.isAlarmActive;
+    const hasAnyAlarm = hasAlarmFlags.some(v => !!v) || state.isAlarmActive;
 
     // Update Header Badge
     const badge = document.getElementById('okupasi-alarm-badge');
@@ -254,7 +463,7 @@ function renderOrUpdateOkupasiChart() {
             badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block mr-1.5 animate-pulse"></span>EVENT ALARM TERDETEKSI';
         } else {
             badge.className = 'px-2.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition-all';
-            badge.textContent = 'NORMAL REAL-TIME';
+            badge.textContent = (state.historisFilterMode === '1hour') ? 'NORMAL REAL-TIME' : 'NORMAL';
         }
     }
 
@@ -266,16 +475,16 @@ function renderOrUpdateOkupasiChart() {
             borderColor: '#00E5FF',
             backgroundColor: cyanGradient,
             borderWidth: 2,
-            tension: 0.4,
+            tension: 0.35,
             fill: true,
-            pointRadius: (c) => state.okupasiBuffer[c.dataIndex]?.hasAlarm ? 0 : 2,
+            pointRadius: (c) => hasAlarmFlags[c.dataIndex] ? 0 : 2,
             pointHoverRadius: 5,
             pointBackgroundColor: '#00E5FF',
             segment: {
                 borderColor: ctx => {
-                    const p0 = state.okupasiBuffer[ctx.p0DataIndex];
-                    const p1 = state.okupasiBuffer[ctx.p1DataIndex];
-                    if ((p0 && p0.hasAlarm) || (p1 && p1.hasAlarm)) {
+                    const p0 = hasAlarmFlags[ctx.p0DataIndex];
+                    const p1 = hasAlarmFlags[ctx.p1DataIndex];
+                    if (p0 || p1) {
                         return '#EF4444'; // Red stroke only in alarm zone!
                     }
                     return '#00E5FF';
@@ -290,11 +499,11 @@ function renderOrUpdateOkupasiChart() {
             borderColor: '#EF4444',
             backgroundColor: redGradient,
             borderWidth: 2.5,
-            tension: 0.4,
+            tension: 0.35,
             fill: true,
             spanGaps: false,
-            pointRadius: (c) => state.okupasiBuffer[c.dataIndex]?.hasAlarm ? 5.5 : 0,
-            pointHoverRadius: (c) => state.okupasiBuffer[c.dataIndex]?.hasAlarm ? 8 : 0,
+            pointRadius: (c) => hasAlarmFlags[c.dataIndex] ? 5.5 : 0,
+            pointHoverRadius: (c) => hasAlarmFlags[c.dataIndex] ? 8 : 0,
             pointBackgroundColor: '#EF4444',
             pointBorderColor: '#FFFFFF',
             pointBorderWidth: 2,
@@ -312,7 +521,7 @@ function renderOrUpdateOkupasiChart() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: false, // smooth real-time glide without glitchy animation
+                animation: false,
                 plugins: {
                     legend: {
                         display: true,
@@ -321,9 +530,8 @@ function renderOrUpdateOkupasiChart() {
                             font: { size: 11 },
                             boxWidth: 14,
                             filter: function(item) {
-                                // Only show Area Event Alarm in legend if an alarm is present in view
                                 if (item.text === 'Area Event Alarm') {
-                                    return state.okupasiBuffer.some(p => p.hasAlarm);
+                                    return hasAlarmFlags.some(v => !!v);
                                 }
                                 return true;
                             }
@@ -338,11 +546,11 @@ function renderOrUpdateOkupasiChart() {
                         callbacks: {
                             label: function(ctx) {
                                 const idx = ctx.dataIndex;
-                                const item = state.okupasiBuffer[idx];
+                                const isAlm = hasAlarmFlags[idx];
                                 if (ctx.datasetIndex === 1) {
-                                    return item && item.hasAlarm ? `⚠️ EVENT ALARM: ${formatNumber(ctx.parsed.y)} Sampel` : null;
+                                    return isAlm ? `⚠️ EVENT ALARM: ${formatNumber(ctx.parsed.y)}` : null;
                                 }
-                                return `Okupasi: ${formatNumber(ctx.parsed.y)} Sampel`;
+                                return `Okupasi: ${formatNumber(ctx.parsed.y)}`;
                             }
                         }
                     }
@@ -374,107 +582,211 @@ function renderOrUpdateOkupasiChart() {
     }
 }
 
-// Background Realtime Engine (Slides charts automatically with fresh data)
-let tickCounter = 0;
-function startRealtimePolling() {
-    if (state.realtimeInterval) clearInterval(state.realtimeInterval);
-    state.realtimeInterval = setInterval(async () => {
+// Render or smooth update Historis Alarm
+function renderOrUpdateAlarmChart(customLabels, customSeries) {
+    const canvas = document.getElementById('chart-alarm');
+    if (!canvas) return;
+
+    let labels = [];
+    let series = [];
+
+    if (customLabels && customSeries) {
+        labels = customLabels;
+        series = customSeries;
+    } else if (state.alarmBuffer && state.alarmBuffer.length > 0) {
+        labels = state.alarmBuffer.map(p => p.label);
+        series = state.alarmBuffer.map(p => p.count);
+    } else {
+        return;
+    }
+
+    const hasAnyAlarm = series.some(v => v > 0);
+
+    const badge = document.getElementById('alarm-rate-badge');
+    if (badge) {
+        if (state.historisFilterMode === '1hour') {
+            badge.className = hasAnyAlarm 
+                ? 'px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30' 
+                : 'px-2.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700';
+            badge.textContent = hasAnyAlarm ? 'ALARM AKTIF' : 'LIVE 1 JAM';
+        } else if (state.historisFilterMode === 'hour') {
+            badge.className = 'px-2.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30';
+            badge.textContent = 'PER JAM (60 MENIT)';
+        } else if (state.historisFilterMode === 'day') {
+            badge.className = 'px-2.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30';
+            badge.textContent = 'PER HARI (24 JAM)';
+        } else if (state.historisFilterMode === 'month') {
+            badge.className = 'px-2.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30';
+            badge.textContent = 'PER BULAN';
+        }
+    }
+
+    if (!state.charts.alarm) {
+        state.charts.alarm = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Alarm',
+                    data: series,
+                    borderColor: '#38BDF8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: (ctx) => {
+                        const val = ctx.dataset.data[ctx.dataIndex];
+                        return (val && val > 0) ? 4.5 : 1.5;
+                    },
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: (ctx) => {
+                        const val = ctx.dataset.data[ctx.dataIndex];
+                        return (val && val > 0) ? '#EF4444' : '#38BDF8';
+                    },
+                    pointBorderColor: (ctx) => {
+                        const val = ctx.dataset.data[ctx.dataIndex];
+                        return (val && val > 0) ? '#FFFFFF' : '#38BDF8';
+                    },
+                    pointBorderWidth: (ctx) => {
+                        const val = ctx.dataset.data[ctx.dataIndex];
+                        return (val && val > 0) ? 1.5 : 0;
+                    }
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0F172A',
+                        titleColor: '#F8FAFC',
+                        bodyColor: '#38BDF8',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(ctx) {
+                                return `Alarm: ${formatNumber(ctx.parsed.y)} Event`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                        ticks: { color: '#64748B', font: { size: 10 }, maxRotation: 0 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                        ticks: {
+                            color: '#64748B',
+                            font: { size: 10 },
+                            precision: 0,
+                            callback: function(val) { return formatNumber(val); }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        state.charts.alarm.data.labels = labels;
+        state.charts.alarm.data.datasets[0].data = series;
+        state.charts.alarm.update('none');
+    }
+}
+
+// 1-Second Real-Time Streaming Interval for LIVE 1 Jam Mode
+function start1SecondStreaming() {
+    stop1SecondStreaming();
+
+    state.realtime1sInterval = setInterval(async () => {
+        if (state.historisFilterMode !== '1hour') {
+            stop1SecondStreaming();
+            return;
+        }
+
         try {
-            const res = await fetch('/api/dashboard/stats');
+            const res = await fetch('/api/dashboard/tick');
             const json = await res.json();
             if (json.status === 'success') {
-                const d = json.data;
-                state.isAlarmActive = !!d.is_alarm_active;
-                const lr = d.latest_reading || {};
+                const tick = json.data;
+                state.isAlarmActive = !!tick.is_alarm;
 
-                tickCounter++;
-
-                // Shift and add new real-time point every ~12 seconds (every 4 ticks of 3s)
-                // to maintain a smooth, readable, realistic real-time wave without flattening
-                if (tickCounter % 4 === 0 && state.okupasiBuffer.length > 0) {
-                    const now = new Date();
-                    const timeLabel = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
-
-                    // Generate next realistic okupasi sample continuing the portal throughput curve
-                    const lastPoint = state.okupasiBuffer[state.okupasiBuffer.length - 1];
-                    const lastVal = lastPoint ? lastPoint.value : 120000;
-                    // Natural sinusoidal and organic portal traffic fluctuation
-                    const delta = Math.round((Math.sin(Date.now() / 20000) * 8000) + ((Math.random() - 0.48) * 5000));
-                    const nextVal = Math.max(35000, Math.min(155000, lastVal + delta));
-
-                    const isAlarmNow = state.isAlarmActive || (lr.alarmA1 == 1 || lr.alarmB1 == 1);
-
-                    pushOkupasiSample(timeLabel, nextVal, isAlarmNow);
-                } else if (state.charts.okupasi) {
-                    // Update header badge or state immediately
-                    renderOrUpdateOkupasiChart();
+                // 1. Update live cards
+                const timeEl = document.getElementById('status-terakhir-waktu');
+                if (timeEl) timeEl.textContent = tick.db_time || tick.time;
+                const detA = document.getElementById('det-a-val');
+                if (detA) detA.textContent = `${formatNumber(tick.a1)} / ${formatNumber(tick.a2)}`;
+                const detB = document.getElementById('det-b-val');
+                if (detB) detB.textContent = `${formatNumber(tick.b1)} / ${formatNumber(tick.b2)}`;
+                const suhu = document.getElementById('suhu-val');
+                if (suhu) suhu.textContent = `${tick.temp} °C`;
+                const hum = document.getElementById('humidity-val');
+                if (hum) hum.textContent = `${tick.humidity} %`;
+                const ringkasanAlarm = document.getElementById('ringkasan-alarm');
+                if (ringkasanAlarm) {
+                    ringkasanAlarm.textContent = tick.is_alarm ? 'AKTIF' : 'NORMAL';
+                    ringkasanAlarm.className = tick.is_alarm ? 'font-bold text-rose-500' : 'font-bold text-emerald-400';
                 }
 
-                // Also shift cps realtime chart smoothly
+                // 2. Sliding tick on Okupasi Chart
+                const now = new Date();
+                const secLabel = now.toTimeString().split(' ')[0]; // HH:MM:SS
+                pushOkupasiSample(secLabel, tick.cps, tick.is_alarm);
+
+                // 3. Sliding tick on Alarm Chart
+                pushAlarmSample(secLabel, tick.alarm_count);
+
+                // 4. CPS Chart smooth update
                 if (state.charts.cps && state.charts.cps.data) {
-                    const now = new Date();
-                    const timeLabel = now.toTimeString().split(' ')[0].substring(0, 5);
                     const cpsLabels = state.charts.cps.data.labels;
                     const ds115 = state.charts.cps.data.datasets[0].data;
                     const ds116 = state.charts.cps.data.datasets[1].data;
-                    if (cpsLabels.length > 14) {
+                    if (cpsLabels.length > 20) {
                         cpsLabels.shift();
                         ds115.shift();
                         ds116.shift();
                     }
-                    cpsLabels.push(timeLabel);
-                    ds115.push(lr.A1 || Math.floor(1050 + Math.random() * 150));
-                    ds116.push(lr.B1 || Math.floor(980 + Math.random() * 180));
+                    cpsLabels.push(secLabel.substring(0, 5));
+                    ds115.push(tick.a1);
+                    ds116.push(tick.b1);
                     state.charts.cps.update('none');
                 }
             }
-        } catch (e) {
-            // Silently ignore transient network glitches during polling
+        } catch (err) {
+            // Silently ignore transient network glitch
         }
-    }, 3000);
+    }, 1000); // Tiap 1 detik
 }
 
-function renderDashboardCharts(data) {
-    // 1. Chart Historis Okupasi - Initialize sliding window buffer
-    if (state.okupasiBuffer.length === 0 && data.okupasi) {
-        const rawLabels = data.okupasi.labels || [];
-        const rawSeries = data.okupasi.series || [];
-        const alarmSeries = data.alarm ? data.alarm.series : [];
-        for (let i = 0; i < rawLabels.length; i++) {
-            // Alarm occurred during peak event on 2025-11-10 (680 alarms) and 2025-11-12 (420 alarms)
-            const hasAlarm = (alarmSeries[i] && alarmSeries[i] >= 350) || false;
-            state.okupasiBuffer.push({
-                label: rawLabels[i],
-                value: rawSeries[i],
-                hasAlarm: hasAlarm
-            });
-        }
+function stop1SecondStreaming() {
+    if (state.realtime1sInterval) {
+        clearInterval(state.realtime1sInterval);
+        state.realtime1sInterval = null;
     }
-    renderOrUpdateOkupasiChart();
+}
 
-    // 2. Chart Historis Alarm
-    const alarmCtx = document.getElementById('chart-alarm');
-    if (alarmCtx && data.alarm) {
-        if (state.charts.alarm) state.charts.alarm.destroy();
-        state.charts.alarm = new Chart(alarmCtx, {
-            type: 'line',
-            data: {
-                labels: data.alarm.labels,
-                datasets: [{
-                    label: 'Alarm',
-                    data: data.alarm.series,
-                    borderColor: '#38BDF8',
-                    backgroundColor: 'rgba(56, 189, 248, 0.18)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    pointRadius: 2,
-                    pointHoverRadius: 5
-                }]
-            },
-            options: getDarkChartOptions('Event per hari', 'Event')
-        });
+// Background Realtime Engine (initiates live stream)
+function startRealtimePolling() {
+    if (state.historisFilterMode === '1hour') {
+        start1SecondStreaming();
     }
+}async function loadTelemetryCharts() {
+    try {
+        const res = await fetch('/api/dashboard/charts');
+        const json = await res.json();
+        if (json.status === 'success') {
+            renderTelemetryCharts(json.data);
+        }
+    } catch (e) {
+        console.error('Error fetching telemetry charts:', e);
+    }
+}
+
+function renderTelemetryCharts(data) {
+    if (!data || !data.realtime) return;
 
     // 3. Chart Realtime Laju Cacah
     const cpsCtx = document.getElementById('chart-cps-realtime');

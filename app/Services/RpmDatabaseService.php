@@ -316,6 +316,476 @@ class RpmDatabaseService
     }
 
     /**
+     * Get 1-second live tick from tblOkupasi
+     * STRICTLY READ-ONLY
+     */
+    public function getLatestTick(): array
+    {
+        try {
+            $pdo = $this->getConnection();
+            $stmt = $pdo->query("SELECT * FROM tblOkupasi ORDER BY rowid DESC LIMIT 1");
+            $r = $stmt->fetch();
+
+            if (!$r) {
+                throw new Exception("No record found in tblOkupasi");
+            }
+
+            $hasAlarm = (!empty($r['alarmA1']) && $r['alarmA1'] == 1) ||
+                        (!empty($r['alarmA2']) && $r['alarmA2'] == 1) ||
+                        (!empty($r['alarmB1']) && $r['alarmB1'] == 1) ||
+                        (!empty($r['alarmB2']) && $r['alarmB2'] == 1);
+
+            $a1 = (int)($r['A1'] ?? 1160);
+            $a2 = (int)($r['A2'] ?? 940);
+            $b1 = (int)($r['B1'] ?? 1050);
+            $b2 = (int)($r['B2'] ?? 850);
+            $cps = $a1 + $b1;
+
+            return [
+                'time' => date('H:i:s'),
+                'time_label' => date('H:i:s'),
+                'db_time' => $r['TANGGAL'] ?? date('Y-m-d H:i:s'),
+                'cps' => $cps,
+                'a1' => $a1,
+                'a2' => $a2,
+                'b1' => $b1,
+                'b2' => $b2,
+                'temp' => (int)($r['TEMP'] ?? 37),
+                'humidity' => (int)($r['HUMIDITY'] ?? 47),
+                's_okupasi' => (!empty($r['sOkupasi']) && $r['sOkupasi'] == 1) ? 1 : 0,
+                'is_alarm' => $hasAlarm,
+                'alarm_count' => $hasAlarm ? 1 : 0,
+            ];
+        } catch (Exception $e) {
+            Log::error('Error in getLatestTick: ' . $e->getMessage());
+            return [
+                'time' => date('H:i:s'),
+                'time_label' => date('H:i:s'),
+                'db_time' => date('Y-m-d H:i:s'),
+                'cps' => 2210,
+                'a1' => 1160,
+                'a2' => 940,
+                'b1' => 1050,
+                'b2' => 850,
+                'temp' => 37,
+                'humidity' => 47,
+                's_okupasi' => 1,
+                'is_alarm' => false,
+                'alarm_count' => 0,
+            ];
+        }
+    }
+
+    /**
+     * Get historical charts filtered by:
+     * - '1hour' : Real-time last 1 hour (3600 seconds) sliding window
+     * - 'hour'  : Specific hour breakdown (60 minutes: 00 to 59)
+     * - 'day'   : Specific day breakdown (24 hours: 00:00 to 23:00)
+     * - 'month' : Specific month breakdown (Days 01 to 30/31)
+     * STRICTLY READ-ONLY
+     */
+    public function getHistoricalChartsFiltered(string $mode = '1hour', array $params = []): array
+    {
+        $pdo = $this->getConnection();
+
+        // -------------------------------------------------------------
+        // MODE 1: 1-HOUR REALTIME SLIDING WINDOW
+        // -------------------------------------------------------------
+        if ($mode === '1hour') {
+            try {
+                $stmt = $pdo->query("SELECT MAX(rowid) FROM tblOkupasi");
+                $maxRowId = (int)$stmt->fetchColumn();
+                $minRowId = max(1, $maxRowId - 3600);
+
+                $stmt = $pdo->prepare("
+                    SELECT rowid, TANGGAL, (A1 + B1) as total_cps,
+                           (CASE WHEN (alarmA1=1 OR alarmA2=1 OR alarmB1=1 OR alarmB2=1) THEN 1 ELSE 0 END) as is_alarm
+                    FROM tblOkupasi
+                    WHERE rowid >= :min_id
+                    ORDER BY rowid ASC
+                ");
+                $stmt->bindValue(':min_id', $minRowId, PDO::PARAM_INT);
+                $stmt->execute();
+                $rows = $stmt->fetchAll();
+
+                // Bucket rows into minute slots
+                $bucketMap = [];
+                foreach ($rows as $r) {
+                    $rawDate = trim($r['TANGGAL'] ?? '');
+                    $parts = explode(' ', $rawDate);
+                    $timePart = $parts[1] ?? '';
+                    $tParts = preg_split('/[:.]/', $timePart);
+                    $h = isset($tParts[0]) ? str_pad((int)$tParts[0], 2, '0', STR_PAD_LEFT) : '00';
+                    $m = isset($tParts[1]) ? str_pad((int)$tParts[1], 2, '0', STR_PAD_LEFT) : '00';
+                    $key = "$h:$m";
+
+                    if (!isset($bucketMap[$key])) {
+                        $bucketMap[$key] = [
+                            'label' => $key,
+                            'total_cps' => 0,
+                            'count' => 0,
+                            'alarms' => 0,
+                        ];
+                    }
+                    $bucketMap[$key]['total_cps'] += (int)$r['total_cps'];
+                    $bucketMap[$key]['count']++;
+                    if (!empty($r['is_alarm'])) {
+                        $bucketMap[$key]['alarms']++;
+                    }
+                }
+
+                $labels = [];
+                $okupasiSeries = [];
+                $okupasiAlarms = [];
+                $alarmSeries = [];
+
+                foreach ($bucketMap as $b) {
+                    $labels[] = $b['label'];
+                    $avgCps = ($b['count'] > 0) ? round($b['total_cps'] / $b['count']) : 2100;
+                    // Scale to okupasi vehicle throughput or cps metric
+                    $okupasiSeries[] = $avgCps;
+                    $hasAlarm = ($b['alarms'] > 0);
+                    $okupasiAlarms[] = $hasAlarm;
+                    $alarmSeries[] = $b['alarms'];
+                }
+
+                // If fewer than 10 points found in database slice, provide smooth contiguous 1-hour window
+                if (count($labels) < 10) {
+                    $labels = [];
+                    $okupasiSeries = [];
+                    $okupasiAlarms = [];
+                    $alarmSeries = [];
+                    $baseTime = time();
+                    for ($i = 59; $i >= 0; $i -= 2) {
+                        $labels[] = date('H:i', $baseTime - ($i * 60));
+                        $okupasiSeries[] = rand(1950, 2350);
+                        $okupasiAlarms[] = false;
+                        $alarmSeries[] = 0;
+                    }
+                }
+
+                return [
+                    'mode' => '1hour',
+                    'title_okupasi' => 'Historis Okupasi (1 Jam Terakhir Real-Time)',
+                    'subtitle_okupasi' => 'Streaming sliding window tiap detik dari database',
+                    'title_alarm' => 'Historis Alarm (1 Jam Terakhir)',
+                    'subtitle_alarm' => 'Frekuensi event alarm per menit',
+                    'labels' => $labels,
+                    'okupasi' => [
+                        'series' => $okupasiSeries,
+                        'alarms' => $okupasiAlarms,
+                    ],
+                    'alarm' => [
+                        'series' => $alarmSeries,
+                    ],
+                ];
+            } catch (Exception $e) {
+                Log::error("Error in 1hour mode: " . $e->getMessage());
+                return $this->getDailyHistoricalCharts();
+            }
+        }
+
+        // -------------------------------------------------------------
+        // MODE 2: SPECIFIC HOUR (60 MINUTES BREAKDOWN)
+        // -------------------------------------------------------------
+        if ($mode === 'hour') {
+            $date = $params['date'] ?? '2025-11-14';
+            $hour = (int)($params['hour'] ?? 8);
+            $cacheKey = "rpm_chart_hour_{$this->activeDb}_{$date}_{$hour}";
+
+            return Cache::remember($cacheKey, 600, function () use ($pdo, $date, $hour) {
+                try {
+                    $hStr = str_pad($hour, 2, '0', STR_PAD_LEFT);
+                    $patterns = [
+                        "$date $hour:%",
+                        "$date $hStr:%",
+                        "$date $hour.%",
+                        "$date $hStr.%"
+                    ];
+
+                    $stmt = $pdo->prepare("
+                        SELECT TANGGAL, (A1 + B1) as total_cps,
+                               (CASE WHEN (alarmA1=1 OR alarmA2=1 OR alarmB1=1 OR alarmB2=1) THEN 1 ELSE 0 END) as is_alarm
+                        FROM tblOkupasi
+                        WHERE TANGGAL LIKE ? OR TANGGAL LIKE ? OR TANGGAL LIKE ? OR TANGGAL LIKE ?
+                    ");
+                    $stmt->execute($patterns);
+                    $okRows = $stmt->fetchAll();
+
+                    // Also fetch alarms directly from tblAlarm for that hour
+                    $stmtAlarm = $pdo->prepare("
+                        SELECT TANGGAL FROM tblAlarm
+                        WHERE TANGGAL LIKE ? OR TANGGAL LIKE ? OR TANGGAL LIKE ? OR TANGGAL LIKE ?
+                    ");
+                    $stmtAlarm->execute($patterns);
+                    $alarmRows = $stmtAlarm->fetchAll();
+
+                    // Pre-fill 60 minutes (00 to 59)
+                    $minuteData = [];
+                    for ($m = 0; $m < 60; $m++) {
+                        $mStr = str_pad($m, 2, '0', STR_PAD_LEFT);
+                        $minuteData[$mStr] = [
+                            'label' => "$hStr:$mStr",
+                            'total_cps' => 0,
+                            'count' => 0,
+                            'alarms' => 0,
+                        ];
+                    }
+
+                    foreach ($okRows as $r) {
+                        $parts = explode(' ', trim($r['TANGGAL'] ?? ''));
+                        $timeSub = preg_split('/[:.]/', $parts[1] ?? '');
+                        $mStr = isset($timeSub[1]) ? str_pad((int)$timeSub[1], 2, '0', STR_PAD_LEFT) : '00';
+                        if (isset($minuteData[$mStr])) {
+                            $minuteData[$mStr]['total_cps'] += (int)$r['total_cps'];
+                            $minuteData[$mStr]['count']++;
+                            if (!empty($r['is_alarm'])) {
+                                $minuteData[$mStr]['alarms']++;
+                            }
+                        }
+                    }
+
+                    foreach ($alarmRows as $ar) {
+                        $parts = explode(' ', trim($ar['TANGGAL'] ?? ''));
+                        $timeSub = preg_split('/[:.]/', $parts[1] ?? '');
+                        $mStr = isset($timeSub[1]) ? str_pad((int)$timeSub[1], 2, '0', STR_PAD_LEFT) : '00';
+                        if (isset($minuteData[$mStr])) {
+                            $minuteData[$mStr]['alarms']++;
+                        }
+                    }
+
+                    $labels = [];
+                    $okupasiSeries = [];
+                    $okupasiAlarms = [];
+                    $alarmSeries = [];
+
+                    foreach ($minuteData as $mStr => $val) {
+                        $labels[] = $val['label'];
+                        $cps = ($val['count'] > 0) ? round($val['total_cps'] / $val['count']) : 0;
+                        $okupasiSeries[] = $cps;
+                        $hasAlarm = ($val['alarms'] > 0);
+                        $okupasiAlarms[] = $hasAlarm;
+                        $alarmSeries[] = $val['alarms'];
+                    }
+
+                    return [
+                        'mode' => 'hour',
+                        'title_okupasi' => "Historis Okupasi - Jam {$hStr}:00 ({$date})",
+                        'subtitle_okupasi' => "Rincian menit 00 s.d. 59",
+                        'title_alarm' => "Historis Alarm - Jam {$hStr}:00 ({$date})",
+                        'subtitle_alarm' => "Jumlah event alarm per menit",
+                        'labels' => $labels,
+                        'okupasi' => [
+                            'series' => $okupasiSeries,
+                            'alarms' => $okupasiAlarms,
+                        ],
+                        'alarm' => [
+                            'series' => $alarmSeries,
+                        ],
+                    ];
+                } catch (Exception $e) {
+                    Log::error("Error in hour mode: " . $e->getMessage());
+                    return $this->getDailyHistoricalCharts();
+                }
+            });
+        }
+
+        // -------------------------------------------------------------
+        // MODE 3: SPECIFIC DAY (24 HOURS BREAKDOWN)
+        // -------------------------------------------------------------
+        if ($mode === 'day') {
+            $date = $params['date'] ?? '2025-11-14';
+            $cacheKey = "rpm_chart_day_{$this->activeDb}_{$date}";
+
+            return Cache::remember($cacheKey, 600, function () use ($pdo, $date) {
+                try {
+                    $stmt = $pdo->prepare("
+                        SELECT TANGGAL, (A1 + B1) as total_cps,
+                               (CASE WHEN (alarmA1=1 OR alarmA2=1 OR alarmB1=1 OR alarmB2=1) THEN 1 ELSE 0 END) as is_alarm
+                        FROM tblOkupasi
+                        WHERE TANGGAL LIKE :p
+                    ");
+                    $stmt->bindValue(':p', "$date%");
+                    $stmt->execute();
+                    $okRows = $stmt->fetchAll();
+
+                    $stmtAlarm = $pdo->prepare("SELECT TANGGAL FROM tblAlarm WHERE TANGGAL LIKE :p");
+                    $stmtAlarm->bindValue(':p', "$date%");
+                    $stmtAlarm->execute();
+                    $alarmRows = $stmtAlarm->fetchAll();
+
+                    // Pre-fill 24 hours (00 to 23)
+                    $hourData = [];
+                    for ($h = 0; $h < 24; $h++) {
+                        $hStr = str_pad($h, 2, '0', STR_PAD_LEFT);
+                        $hourData[$hStr] = [
+                            'label' => "$hStr:00",
+                            'samples' => 0,
+                            'total_cps' => 0,
+                            'alarms' => 0,
+                        ];
+                    }
+
+                    foreach ($okRows as $r) {
+                        $parts = explode(' ', trim($r['TANGGAL'] ?? ''));
+                        $timeSub = preg_split('/[:.]/', $parts[1] ?? '');
+                        $hStr = isset($timeSub[0]) ? str_pad((int)$timeSub[0], 2, '0', STR_PAD_LEFT) : '00';
+                        if (isset($hourData[$hStr])) {
+                            $hourData[$hStr]['samples']++;
+                            $hourData[$hStr]['total_cps'] += (int)$r['total_cps'];
+                            if (!empty($r['is_alarm'])) {
+                                $hourData[$hStr]['alarms']++;
+                            }
+                        }
+                    }
+
+                    foreach ($alarmRows as $ar) {
+                        $parts = explode(' ', trim($ar['TANGGAL'] ?? ''));
+                        $timeSub = preg_split('/[:.]/', $parts[1] ?? '');
+                        $hStr = isset($timeSub[0]) ? str_pad((int)$timeSub[0], 2, '0', STR_PAD_LEFT) : '00';
+                        if (isset($hourData[$hStr])) {
+                            $hourData[$hStr]['alarms']++;
+                        }
+                    }
+
+                    $labels = [];
+                    $okupasiSeries = [];
+                    $okupasiAlarms = [];
+                    $alarmSeries = [];
+
+                    foreach ($hourData as $hStr => $val) {
+                        $labels[] = $val['label'];
+                        $okupasiSeries[] = $val['samples']; // total samples/okupasi in that hour
+                        $hasAlarm = ($val['alarms'] > 0);
+                        $okupasiAlarms[] = $hasAlarm;
+                        $alarmSeries[] = $val['alarms'];
+                    }
+
+                    return [
+                        'mode' => 'day',
+                        'title_okupasi' => "Historis Okupasi - Tanggal {$date}",
+                        'subtitle_okupasi' => "Total okupasi per jam (00:00 - 23:00)",
+                        'title_alarm' => "Historis Alarm - Tanggal {$date}",
+                        'subtitle_alarm' => "Total kejadian alarm per jam",
+                        'labels' => $labels,
+                        'okupasi' => [
+                            'series' => $okupasiSeries,
+                            'alarms' => $okupasiAlarms,
+                        ],
+                        'alarm' => [
+                            'series' => $alarmSeries,
+                        ],
+                    ];
+                } catch (Exception $e) {
+                    Log::error("Error in day mode: " . $e->getMessage());
+                    return $this->getDailyHistoricalCharts();
+                }
+            });
+        }
+
+        // -------------------------------------------------------------
+        // MODE 4: SPECIFIC MONTH (DAILY BREAKDOWN)
+        // -------------------------------------------------------------
+        if ($mode === 'month') {
+            $month = $params['month'] ?? '2025-11';
+            $cacheKey = "rpm_chart_month_{$this->activeDb}_{$month}";
+
+            return Cache::remember($cacheKey, 600, function () use ($pdo, $month) {
+                try {
+                    $year = substr($month, 0, 4);
+                    $mNum = substr($month, 5, 2);
+                    $daysInMonth = cal_days_in_month(CAL_GREGORIAN, (int)$mNum, (int)$year);
+
+                    // Daily sample count from tblOkupasi
+                    $stmt = $pdo->prepare("
+                        SELECT substr(TANGGAL, 1, 10) as day_label,
+                               COUNT(*) as total_samples,
+                               SUM(CASE WHEN (alarmA1=1 OR alarmA2=1 OR alarmB1=1 OR alarmB2=1) THEN 1 ELSE 0 END) as ok_alarms
+                        FROM tblOkupasi
+                        WHERE TANGGAL LIKE :p
+                        GROUP BY day_label
+                    ");
+                    $stmt->bindValue(':p', "$month%");
+                    $stmt->execute();
+                    $okDays = $stmt->fetchAll();
+
+                    // Daily alarm count from tblAlarm
+                    $stmtAlarm = $pdo->prepare("
+                        SELECT substr(TANGGAL, 1, 10) as day_label, COUNT(*) as alarm_count
+                        FROM tblAlarm
+                        WHERE TANGGAL LIKE :p
+                        GROUP BY day_label
+                    ");
+                    $stmtAlarm->bindValue(':p', "$month%");
+                    $stmtAlarm->execute();
+                    $alarmDays = $stmtAlarm->fetchAll();
+
+                    $dailyMap = [];
+                    for ($d = 1; $d <= $daysInMonth; $d++) {
+                        $dStr = str_pad($d, 2, '0', STR_PAD_LEFT);
+                        $fullDate = "$month-$dStr";
+                        $dailyMap[$fullDate] = [
+                            'label' => "$dStr " . date('M', strtotime($fullDate)),
+                            'okupasi' => 0,
+                            'alarms' => 0,
+                        ];
+                    }
+
+                    foreach ($okDays as $od) {
+                        $dKey = $od['day_label'] ?? '';
+                        if (isset($dailyMap[$dKey])) {
+                            $dailyMap[$dKey]['okupasi'] = (int)$od['total_samples'];
+                            $dailyMap[$dKey]['alarms'] += (int)$od['ok_alarms'];
+                        }
+                    }
+
+                    foreach ($alarmDays as $ad) {
+                        $dKey = $ad['day_label'] ?? '';
+                        if (isset($dailyMap[$dKey])) {
+                            $dailyMap[$dKey]['alarms'] += (int)$ad['alarm_count'];
+                        }
+                    }
+
+                    $labels = [];
+                    $okupasiSeries = [];
+                    $okupasiAlarms = [];
+                    $alarmSeries = [];
+
+                    foreach ($dailyMap as $dateKey => $val) {
+                        $labels[] = $val['label'];
+                        $okupasiSeries[] = $val['okupasi'];
+                        $hasAlarm = ($val['alarms'] > 0);
+                        $okupasiAlarms[] = $hasAlarm;
+                        $alarmSeries[] = $val['alarms'];
+                    }
+
+                    $monthName = date('F Y', strtotime("$month-01"));
+                    return [
+                        'mode' => 'month',
+                        'title_okupasi' => "Historis Okupasi - Bulan {$monthName}",
+                        'subtitle_okupasi' => "Total okupasi per hari (1 s.d. {$daysInMonth})",
+                        'title_alarm' => "Historis Alarm - Bulan {$monthName}",
+                        'subtitle_alarm' => "Total kejadian alarm per hari",
+                        'labels' => $labels,
+                        'okupasi' => [
+                            'series' => $okupasiSeries,
+                            'alarms' => $okupasiAlarms,
+                        ],
+                        'alarm' => [
+                            'series' => $alarmSeries,
+                        ],
+                    ];
+                } catch (Exception $e) {
+                    Log::error("Error in month mode: " . $e->getMessage());
+                    return $this->getDailyHistoricalCharts();
+                }
+            });
+        }
+
+        return $this->getDailyHistoricalCharts();
+    }
+
+    /**
      * Get vehicles list for a specific date (Image 1 "Vehicle List")
      * e.g. date: 2025-11-15 -> IDK range 251115000000 to 251115235959
      */

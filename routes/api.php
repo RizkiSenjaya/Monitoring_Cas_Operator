@@ -17,6 +17,8 @@ Route::prefix('dashboard')->group(function () {
     Route::get('/alarms', [DashboardController::class, 'alarms']);
     Route::get('/pillars', [DashboardController::class, 'pillars']);
     Route::get('/charts', [DashboardController::class, 'charts']);
+    Route::get('/charts-filtered', [DashboardController::class, 'chartsFiltered']);
+    Route::get('/tick', [DashboardController::class, 'tick']);
 });
 
 // Historis endpoints (Sesuai Gambar 1 & Akses Data D:\CAS_OPERATOR)

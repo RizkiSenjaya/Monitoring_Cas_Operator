@@ -62,4 +62,39 @@ class DashboardController extends Controller
             'data' => $charts
         ]);
     }
+
+    /**
+     * Get historical charts filtered by:
+     * - '1hour' : Real-time last 1 hour
+     * - 'hour'  : Specific hour
+     * - 'day'   : Specific day (24 hours)
+     * - 'month' : Specific month (Daily)
+     */
+    public function chartsFiltered(Request $request): JsonResponse
+    {
+        $mode = $request->input('mode', '1hour');
+        $params = [
+            'date' => $request->input('date', '2025-11-14'),
+            'hour' => (int)$request->input('hour', 8),
+            'month' => $request->input('month', '2025-11'),
+        ];
+
+        $data = $this->rpmService->getHistoricalChartsFiltered($mode, $params);
+        return response()->json([
+            'status' => 'success',
+            'data' => $data
+        ]);
+    }
+
+    /**
+     * High-speed 1-second live tick endpoint
+     */
+    public function tick(): JsonResponse
+    {
+        $tick = $this->rpmService->getLatestTick();
+        return response()->json([
+            'status' => 'success',
+            'data' => $tick
+        ]);
+    }
 }

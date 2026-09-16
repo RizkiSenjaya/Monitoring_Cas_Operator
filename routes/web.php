@@ -21,6 +21,8 @@ Route::prefix('api')->group(function () {
     Route::get('/dashboard/alarms', [DashboardController::class, 'alarms']);
     Route::get('/dashboard/pillars', [DashboardController::class, 'pillars']);
     Route::get('/dashboard/charts', [DashboardController::class, 'charts']);
+    Route::get('/dashboard/charts-filtered', [DashboardController::class, 'chartsFiltered']);
+    Route::get('/dashboard/tick', [DashboardController::class, 'tick']);
 
     Route::get('/historis/available-dates', [HistorisController::class, 'availableDates']);
     Route::get('/historis/vehicles', [HistorisController::class, 'vehicles']);
