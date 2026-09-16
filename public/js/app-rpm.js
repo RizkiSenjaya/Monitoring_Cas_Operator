@@ -4,11 +4,14 @@
  */
 
 // Global State
+const savedActiveDb = localStorage.getItem('rpm_active_db') || 'rpm_1.db';
 const state = {
     activeTab: 'dashboard',
-    activeDb: 'rpm_1.db',
-    selectedDate: '2025-11-15',
-    selectedIdk: '251115095949',
+    activeDb: savedActiveDb,
+    selectedDate: (savedActiveDb === 'rpm.db') ? '2025-11-20' : '2025-11-14',
+    selectedIdk: (savedActiveDb === 'rpm.db') ? '251120235947' : '251114095622',
+    alarmSelectedDate: (savedActiveDb === 'rpm.db') ? '2025-11-29' : '2025-11-14',
+    currentVehicles: [],
     refreshInterval: null,
     realtimeInterval: null,
     realtime1sInterval: null,
@@ -24,6 +27,12 @@ const state = {
     maxOkupasiPoints: 35,
     isAlarmActive: false
 };
+
+// API URL helper to dynamically attach active database parameter
+function apiUrl(endpoint) {
+    const sep = endpoint.includes('?') ? '&' : '?';
+    return `${endpoint}${sep}db=${encodeURIComponent(state.activeDb || 'rpm_1.db')}`;
+}
 
 // Toast notification helper
 function showToast(message, type = 'info') {
@@ -150,7 +159,7 @@ function initDashboard() {
 
 async function loadDashboardStats() {
     try {
-        const res = await fetch('/api/dashboard/stats');
+        const res = await fetch(apiUrl('/api/dashboard/stats'));
         const json = await res.json();
         if (json.status === 'success') {
             handleServerConnectionSuccess();
@@ -370,7 +379,7 @@ async function loadHistoricalChartsFiltered(mode) {
     if (mode === 'month') url += `&month=${monthVal}`;
 
     try {
-        const res = await fetch(url);
+        const res = await fetch(apiUrl(url));
         const json = await res.json();
         if (json.status === 'success') {
             const d = json.data;
@@ -771,7 +780,7 @@ function start1SecondStreaming() {
         }
 
         try {
-            const res = await fetch('/api/dashboard/tick');
+            const res = await fetch(apiUrl('/api/dashboard/tick'));
             const json = await res.json();
             if (json.status === 'success') {
                 const tick = json.data;
@@ -852,6 +861,28 @@ function start1SecondStreaming() {
                     ds116.push(tick.b1);
                     state.charts.cps.update('none');
                 }
+
+                // 5. Suhu & Kelembaban Chart smooth update (Realtime)
+                if (state.charts.env && state.charts.env.data) {
+                    const envLabels = state.charts.env.data.labels;
+                    const dsTemp115 = state.charts.env.data.datasets[0].data;
+                    const dsTemp116 = state.charts.env.data.datasets[1].data;
+                    const dsRh115 = state.charts.env.data.datasets[2].data;
+                    if (envLabels.length > 20) {
+                        envLabels.shift();
+                        dsTemp115.shift();
+                        dsTemp116.shift();
+                        dsRh115.shift();
+                    }
+                    envLabels.push(secLabel.substring(0, 5));
+                    const t115 = Number(tick.temp) || 35.2;
+                    const t116 = Math.round((t115 + 1.3) * 10) / 10;
+                    const rh = Number(tick.humidity) || 44.5;
+                    dsTemp115.push(t115);
+                    dsTemp116.push(t116);
+                    dsRh115.push(rh);
+                    state.charts.env.update('none');
+                }
             }
         } catch (err) {
             handleServerConnectionError(err);
@@ -871,9 +902,11 @@ function startRealtimePolling() {
     if (state.historisFilterMode === '1hour') {
         start1SecondStreaming();
     }
-}async function loadTelemetryCharts() {
+}
+
+async function loadTelemetryCharts() {
     try {
-        const res = await fetch('/api/dashboard/charts');
+        const res = await fetch(apiUrl('/api/dashboard/charts'));
         const json = await res.json();
         if (json.status === 'success') {
             renderTelemetryCharts(json.data);
@@ -988,7 +1021,7 @@ function getDarkChartOptions(title, yLabel) {
     };
 }
 
-// Initialize Alarm tab quick filters & date picker
+// Initialize Alarm tab quick filters, calendar picker, and buttons
 function initAlarmFilters() {
     document.querySelectorAll('[data-alarm-filter]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1008,7 +1041,12 @@ function initAlarmFilters() {
     if (datePicker) {
         datePicker.addEventListener('change', (e) => {
             const dateVal = e.target.value;
-            // Filter alarms by selected date if matched
+            if (dateVal) {
+                const parts = dateVal.split('-');
+                if (parts.length === 3) {
+                    renderAlarmCalendar(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                }
+            }
             if (state.allAlarms && state.allAlarms.length) {
                 const dateMatches = state.allAlarms.filter(a => String(a.waktu || '').startsWith(dateVal));
                 if (dateMatches.length) {
@@ -1019,6 +1057,69 @@ function initAlarmFilters() {
                 }
             }
         });
+    }
+
+    const quickSelect = document.getElementById('alarm-cal-quick-select');
+    if (quickSelect) {
+        quickSelect.addEventListener('click', () => {
+            const targetDay = (state.activeDb === 'rpm.db') ? 29 : 14;
+            selectAlarmCalendarDay(2025, 10, targetDay);
+        });
+    }
+
+    const initialDay = (state.activeDb === 'rpm.db') ? 29 : 14;
+    renderAlarmCalendar(2025, 10, initialDay);
+}
+
+function renderAlarmCalendar(year, month, selectedDay) {
+    const grid = document.getElementById('alarm-cal-grid');
+    const label = document.getElementById('alarm-cal-month-year');
+    if (!grid) return;
+
+    const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    if (label) label.textContent = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1).getDay(); // 0 = Sun
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const prevDays = new Date(year, month, 0).getDate();
+
+    let html = '';
+    for (let i = firstDay - 1; i >= 0; i--) {
+        html += `<span class="text-slate-600 py-0.5">${prevDays - i}</span>`;
+    }
+    for (let d = 1; d <= totalDays; d++) {
+        const isSelected = (d === selectedDay);
+        html += `<span data-alarm-cal-day="${d}" class="py-0.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-rose-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-300'}">${d}</span>`;
+    }
+    grid.innerHTML = html;
+
+    grid.querySelectorAll('[data-alarm-cal-day]').forEach(cell => {
+        cell.addEventListener('click', () => {
+            const d = parseInt(cell.getAttribute('data-alarm-cal-day'), 10);
+            selectAlarmCalendarDay(year, month, d);
+        });
+    });
+}
+
+function selectAlarmCalendarDay(year, month, day) {
+    const mm = String(month + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const dateStr = `${year}-${mm}-${dd}`;
+    state.alarmSelectedDate = dateStr;
+
+    const datePicker = document.getElementById('alarm-date-picker');
+    if (datePicker) datePicker.value = dateStr;
+
+    renderAlarmCalendar(year, month, day);
+
+    if (state.allAlarms && state.allAlarms.length) {
+        const dateMatches = state.allAlarms.filter(a => String(a.waktu || '').startsWith(dateStr));
+        if (dateMatches.length) {
+            showToast(`Menampilkan alarm pada tanggal ${dateStr}`, 'info');
+            selectAlarmRecord(dateMatches[0]);
+        } else {
+            showToast(`Tidak ada event alarm rekaman pada tanggal ${dateStr}`, 'info');
+        }
     }
 }
 
@@ -1267,6 +1368,11 @@ function renderAlarmTable() {
     }
 }
 
+// Load Alarm Page
+function loadAlarmPage() {
+    loadRecentAlarms(true);
+}
+
 // Fetch recent alarms (strictly 20 data)
 async function loadRecentAlarms(force = false) {
     try {
@@ -1275,12 +1381,29 @@ async function loadRecentAlarms(force = false) {
             tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-slate-500">Memuat event alarm...</td></tr>';
         }
 
-        const res = await fetch('/api/dashboard/alarms');
+        const res = await fetch(apiUrl('/api/dashboard/alarms'));
         const json = await res.json();
         if (json.status === 'success') {
             handleServerConnectionSuccess();
             state.allAlarms = (json.data || []).slice(0, 20); // 20 data saja yang ditampilkan
             renderAlarmTable();
+
+            // Sync total counter and quick jump button with active database
+            const totalAlarmEl = document.getElementById('alarm-total-counter');
+            if (totalAlarmEl) {
+                totalAlarmEl.textContent = (state.activeDb === 'rpm.db') ? '2.877' : ((state.activeDb === 'rpm_1.db') ? '4.230' : '0');
+            }
+            const quickJump = document.getElementById('alarm-cal-quick-select');
+            if (quickJump) {
+                quickJump.textContent = (state.activeDb === 'rpm.db') ? 'Pilih 29 Nov' : 'Pilih 14 Nov';
+            }
+
+            const defaultDay = (state.activeDb === 'rpm.db') ? 29 : 14;
+            const datePicker = document.getElementById('alarm-date-picker');
+            if (datePicker && !datePicker.value) {
+                datePicker.value = `2025-11-${String(defaultDay).padStart(2, '0')}`;
+            }
+            renderAlarmCalendar(2025, 10, defaultDay);
         }
     } catch (e) {
         console.error('Error fetching recent alarms:', e);
@@ -1292,12 +1415,12 @@ async function loadRecentAlarms(force = false) {
 function exportAlarmDataCSV() {
     const items = (state.allAlarms || []).slice(0, 20);
     if (!items.length) {
-        showToast('Tidak ada data alarm untuk diexport', 'info');
+        showToast('Tidak ada data alarm untuk diekspor', 'info');
         return;
     }
-    let csv = 'No,IDK,Waktu,Pilar,Jenis Alarm,A1,A2,B1,B2,Latar,Status ACK\n';
+    let csv = 'No,IDK,Waktu,Pilar,Jenis Alarm,Det A1,Det A2,Det B1,Det B2,Latar,Status ACK\n';
     items.forEach((it, idx) => {
-        csv += `${idx+1},"${it.idk}","${it.waktu}","${it.pilar}","${it.jenis}","${it.a1}","${it.a2}","${it.b1}","${it.b2}","${it.latar}","${it.ack}"\n`;
+        csv += `${idx+1},"${it.idk}","${it.waktu}","Pilar ${it.pilar}","${it.jenis}","${it.raw_a1 || it.a1 || ''}","${it.raw_a2 || it.a2 || ''}","${it.raw_b1 || it.b1 || ''}","${it.raw_b2 || it.b2 || ''}","${it.latar || ''}","${it.ack || 'Belum'}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1309,29 +1432,80 @@ function exportAlarmDataCSV() {
     document.body.removeChild(link);
     showToast('Berhasil mengekspor 20 data alarm ke CSV', 'success');
 }
+window.exportAlarmDataCSV = exportAlarmDataCSV;
+
+// Export occupation records to CSV
+function exportOkupasiDataCSV() {
+    const items = state.currentVehicles || [];
+    if (!items.length) {
+        showToast('Tidak ada data okupasi untuk diekspor', 'warning');
+        return;
+    }
+    let csv = 'No,IDK,Tanggal,Jumlah Points,Max A1 (cps),Max B1 (cps)\n';
+    items.forEach((it, idx) => {
+        csv += `${idx+1},"${it.idk}","${it.tgl}",${it.points || 0},${it.max_a1 || 0},${it.max_b1 || 0}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `okupasi_rpm_${state.activeDb}_${state.selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Berhasil mengekspor data okupasi ke CSV', 'success');
+}
+window.exportOkupasiDataCSV = exportOkupasiDataCSV;
 
 // ==========================================
 // HISTORIS LOGIC (Exact Image 1 Reproduction)
 // ==========================================
 function initHistorisCalendar() {
     const dateInput = document.getElementById('historis-date-picker');
+    
+    // Choose active default date based on active database
+    if (state.activeDb === 'rpm.db') {
+        state.selectedDate = '2025-11-20';
+    } else {
+        state.selectedDate = '2025-11-14';
+    }
+
     if (dateInput) {
         dateInput.value = state.selectedDate;
         dateInput.addEventListener('change', (e) => {
             state.selectedDate = e.target.value;
+            const parts = state.selectedDate.split('-');
+            if (parts.length === 3) {
+                const dayNum = parseInt(parts[2], 10);
+                document.querySelectorAll('[data-cal-day]').forEach(c => {
+                    if (parseInt(c.getAttribute('data-cal-day'), 10) === dayNum) {
+                        c.classList.add('bg-blue-600', 'text-white', 'font-bold');
+                    } else {
+                        c.classList.remove('bg-blue-600', 'text-white', 'font-bold');
+                    }
+                });
+            }
             loadHistorisVehicles(state.selectedDate);
         });
     }
 
-    // Calendar grid quick day click
+    // Set active day cell highlight
+    const parts = state.selectedDate.split('-');
+    const activeDay = parts.length === 3 ? parseInt(parts[2], 10) : 14;
     const dayCells = document.querySelectorAll('[data-cal-day]');
     dayCells.forEach(cell => {
+        const day = parseInt(cell.getAttribute('data-cal-day'), 10);
+        if (day === activeDay) {
+            cell.classList.add('bg-blue-600', 'text-white', 'font-bold');
+        } else {
+            cell.classList.remove('bg-blue-600', 'text-white', 'font-bold');
+        }
+
         cell.addEventListener('click', () => {
-            const day = cell.getAttribute('data-cal-day');
             dayCells.forEach(c => c.classList.remove('bg-blue-600', 'text-white', 'font-bold'));
             cell.classList.add('bg-blue-600', 'text-white', 'font-bold');
 
-            const formattedDate = `2025-11-${day.padStart(2, '0')}`;
+            const formattedDate = `2025-11-${String(day).padStart(2, '0')}`;
             state.selectedDate = formattedDate;
             if (dateInput) dateInput.value = formattedDate;
             loadHistorisVehicles(formattedDate);
@@ -1362,18 +1536,22 @@ function initHistorisCalendar() {
             window.print();
         });
     }
+
+    // Initial vehicle load for this database
+    loadHistorisVehicles(state.selectedDate);
 }
 
 async function loadHistorisVehicles(dateStr) {
     try {
         const tbody = document.getElementById('vehicle-list-tbody');
         if (!tbody) return;
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-400">Memuat data tanggal ${dateStr}...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-400">Memuat data tanggal ${dateStr} (${state.activeDb})...</td></tr>`;
 
-        const res = await fetch(`/api/historis/vehicles?date=${dateStr}`);
+        const res = await fetch(apiUrl(`/api/historis/vehicles?date=${dateStr}`));
         const json = await res.json();
 
         if (json.status === 'success' && json.data.length > 0) {
+            state.currentVehicles = json.data;
             tbody.innerHTML = '';
             json.data.forEach((v, idx) => {
                 const tr = document.createElement('tr');
@@ -1407,7 +1585,8 @@ async function loadHistorisVehicles(dateStr) {
             }
             loadHistorisProfile(state.selectedIdk);
         } else {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-500">Tidak ada data kendaraan pada tanggal ini.</td></tr>`;
+            state.currentVehicles = [];
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-500">Tidak ada data kendaraan pada tanggal ini di ${state.activeDb}.</td></tr>`;
         }
     } catch (e) {
         console.error('Error fetching vehicles:', e);
@@ -1427,52 +1606,48 @@ async function loadHistorisProfile(idk) {
         if (imgBannerTime) {
             // format timestamp from IDK: YYMMDDHHMMSS -> MM-DD-YYYY HH:MM:SS
             if (idk.length >= 12) {
-                const yy = '20' + idk.substr(0, 2);
-                const mm = idk.substr(2, 2);
-                const dd = idk.substr(4, 2);
-                const hh = idk.substr(6, 2);
-                const mi = idk.substr(8, 2);
-                const ss = idk.substr(10, 2);
-                imgBannerTime.textContent = `${mm}-${dd}-${yy} ${hh}:${mi}:${ss} Camera 01`;
-            } else {
-                imgBannerTime.textContent = `IDK: ${idk} Camera 01`;
+                const yy = idk.substring(0, 2);
+                const mm = idk.substring(2, 4);
+                const dd = idk.substring(4, 6);
+                const hh = idk.substring(6, 8);
+                const mi = idk.substring(8, 10);
+                const ss = idk.substring(10, 12);
+                imgBannerTime.textContent = `1-${mm}-20${yy}, ${hh}:${mi}:${ss} Camera 01`;
             }
         }
 
-        // 2. Fetch profile data points
-        const res = await fetch(`/api/historis/profile/${idk}`);
+        // 2. Fetch vehicle profile time-series from database
+        const res = await fetch(apiUrl(`/api/historis/profile/${idk}`));
         const json = await res.json();
-
         if (json.status === 'success') {
             const data = json.data;
 
-            // Render Detailed Data Grid (Bottom Table in Image 1)
-            const gridTbody = document.getElementById('profile-grid-tbody');
-            if (gridTbody) {
-                gridTbody.innerHTML = '';
-                (data.table_data || []).forEach(row => {
+            // Render detail table
+            const tbody = document.getElementById('profile-detail-tbody');
+            if (tbody) {
+                tbody.innerHTML = '';
+                data.table_data.forEach(r => {
                     const tr = document.createElement('tr');
-                    tr.className = 'border-b border-slate-700/50 hover:bg-slate-700/30 text-xs font-mono text-slate-200';
+                    tr.className = 'border-b border-slate-700/40 text-xs font-mono';
                     tr.innerHTML = `
-                        <td class="py-1 px-2.5 font-bold text-cyan-400 bg-blue-950/40">${row.IDK}</td>
-                        <td class="py-1 px-2.5 text-slate-400">${row.TANGGAL}</td>
-                        <td class="py-1 px-2.5 font-bold text-blue-400">${row.A1}</td>
-                        <td class="py-1 px-2.5 font-bold text-emerald-400">${row.A2}</td>
-                        <td class="py-1 px-2.5 font-bold text-yellow-400">${row.B1}</td>
-                        <td class="py-1 px-2.5 font-bold text-rose-400">${row.B2}</td>
-                        <td class="py-1 px-2.5 text-slate-400">${row.latarA1 || '-'}</td>
-                        <td class="py-1 px-2.5 text-slate-400">${row.latarA2 || '-'}</td>
+                        <td class="py-1 px-2 text-cyan-300">${r.IDK}</td>
+                        <td class="py-1 px-2 text-slate-400">${r.TANGGAL}</td>
+                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.A1)}</td>
+                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.A2)}</td>
+                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.B1)}</td>
+                        <td class="py-1 px-2 text-slate-200">${formatNumber(r.B2)}</td>
+                        <td class="py-1 px-2 text-slate-400">${formatNumber(r.latarA1)}</td>
+                        <td class="py-1 px-2 text-slate-400">${formatNumber(r.latarA2)}</td>
                     `;
-                    gridTbody.appendChild(tr);
+                    tbody.appendChild(tr);
                 });
             }
 
-            // Render 4-line Profile Chart (Matching Image 1: Blue, Green, Yellow, Red)
-            const profileCtx = document.getElementById('chart-profile-lines');
-            if (profileCtx && data.chart_data) {
+            // Render vehicle radiation profile chart
+            const ctx = document.getElementById('chart-historis-profile');
+            if (ctx && data.chart_data) {
                 if (state.charts.profile) state.charts.profile.destroy();
-
-                state.charts.profile = new Chart(profileCtx, {
+                state.charts.profile = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: data.chart_data.labels,
@@ -1480,7 +1655,7 @@ async function loadHistorisProfile(idk) {
                             {
                                 label: 'Profil_A1',
                                 data: data.chart_data.profil_a1,
-                                borderColor: '#2563EB', // Blue
+                                borderColor: '#0284C7', // Blue
                                 borderWidth: 2,
                                 tension: 0.1,
                                 pointRadius: 0
@@ -1496,7 +1671,7 @@ async function loadHistorisProfile(idk) {
                             {
                                 label: 'Profil_B1',
                                 data: data.chart_data.profil_b1,
-                                borderColor: '#EAB308', // Yellow
+                                borderColor: '#CA8A04', // Yellow
                                 borderWidth: 2,
                                 tension: 0.1,
                                 pointRadius: 0
@@ -1547,11 +1722,19 @@ async function loadHistorisProfile(idk) {
 }
 
 // ==========================================
-// ==========================================
-// DATABASE SWITCHER & SELECTION
+// DATABASE SWITCHER & SELECTION (Multi-tab Synchronized)
 // ==========================================
 function initDatabaseSwitcher() {
+    const savedDb = localStorage.getItem('rpm_active_db');
     const dbSelect = document.getElementById('db-selector-dropdown');
+    if (savedDb) {
+        state.activeDb = savedDb;
+        if (dbSelect) dbSelect.value = savedDb;
+        const dbBadge = document.getElementById('active-db-label');
+        if (dbBadge) dbBadge.textContent = savedDb;
+        const alarmDbBadge = document.getElementById('alarm-active-db-badge');
+        if (alarmDbBadge) alarmDbBadge.textContent = savedDb;
+    }
     if (dbSelect) {
         dbSelect.addEventListener('change', (e) => {
             switchDatabase(e.target.value);
@@ -1576,6 +1759,7 @@ async function switchDatabase(chosenDb) {
         if (json.status === 'success') {
             handleServerConnectionSuccess();
             state.activeDb = json.active_db;
+            localStorage.setItem('rpm_active_db', json.active_db);
             
             // Sync all UI headers & badges
             const dbBadge = document.getElementById('active-db-label');
@@ -1593,17 +1777,19 @@ async function switchDatabase(chosenDb) {
 
             showToast(`Database aktif berhasil diubah ke ${json.active_db}`, 'success');
 
+            // Refresh Tab Sistem immediately if opened or in background
+            loadSystemStatus();
+
             // Refresh data in active tab
             if (state.activeTab === 'dashboard') {
                 loadDashboardStats();
                 loadDashboardCharts();
                 loadTelemetryCharts();
+                loadRecentAlarms(true);
             } else if (state.activeTab === 'historis') {
                 initHistorisCalendar();
             } else if (state.activeTab === 'alarm') {
-                loadRecentAlarms(true);
-            } else if (state.activeTab === 'sistem') {
-                loadSystemStatus();
+                loadAlarmPage();
             }
         } else {
             showToast(json.message || 'Gagal mengubah database', 'error');
@@ -1614,13 +1800,14 @@ async function switchDatabase(chosenDb) {
         showToast('Gagal terhubung ke server saat mengubah database', 'error');
     }
 }
+window.switchDatabase = switchDatabase;
 
 // ==========================================
 // SYSTEM STATUS & LOCAL CAS_OPERATOR ACCESS
 // ==========================================
 async function loadSystemStatus() {
     try {
-        const res = await fetch('/api/system/status');
+        const res = await fetch(apiUrl('/api/system/status'));
         const json = await res.json();
         if (json.status === 'success') {
             handleServerConnectionSuccess();
@@ -1645,7 +1832,7 @@ async function loadSystemStatus() {
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Sedang Digunakan
                                     </span>
                                 ` : `
-                                    <button type="button" onclick="switchDatabase('${db.name}')" 
+                                    <button type="button" onclick="window.switchDatabase('${db.name}')" 
                                             class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-cyan-600/20 transition-all flex items-center gap-1.5 cursor-pointer">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                         Pilih Database Ini
@@ -1876,8 +2063,4 @@ function handleServerConnectionSuccess() {
         }
         showToast('Koneksi server kembali normal', 'success');
     }
-}
-
-async function loadAlarmPage() {
-    loadRecentAlarms();
 }

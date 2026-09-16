@@ -273,7 +273,7 @@
                 <!-- Database Switcher Dropdown -->
                 <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg">
                     <span class="text-[11px] text-slate-400 font-medium">DB:</span>
-                    <select id="db-selector-dropdown" class="bg-transparent text-xs text-cyan-300 font-mono font-bold focus:outline-none cursor-pointer">
+                    <select id="db-selector-dropdown" onchange="switchDatabase(this.value)" class="bg-transparent text-xs text-cyan-300 font-mono font-bold focus:outline-none cursor-pointer">
                         <option value="rpm_1.db" class="bg-slate-900 text-slate-200">rpm_1.db (2.03M Okupasi)</option>
                         <option value="rpm.db" class="bg-slate-900 text-slate-200">rpm.db (1.48M Okupasi)</option>
                         <option value="rpm_22.db" class="bg-slate-900 text-slate-200">rpm_22.db (Arsip)</option>
@@ -729,15 +729,17 @@
                                     </div>
                                 </div>
 
-                                <!-- Action Buttons Stack (Image 1) -->
-                                <div class="flex flex-col justify-between gap-2">
-                                    <button id="btn-okupasi-data" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-slate-200 rounded shadow">
+                                <!-- Action Buttons Stack (Image 1 replica) -->
+                                <div class="flex flex-col justify-between gap-2 min-w-[130px]">
+                                    <button id="btn-okupasi-data" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-slate-200 rounded shadow transition-all flex items-center justify-center gap-1.5">
                                         Okupasi Data
                                     </button>
-                                    <button id="btn-print-pdf" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-slate-200 rounded shadow">
-                                        Print to PDF
+                                    <button id="btn-export-okupasi-csv" onclick="exportOkupasiDataCSV()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-medium rounded shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        Export to CSV
                                     </button>
-                                    <button onclick="switchTab('dashboard')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-slate-200 rounded shadow">
+                                    <button onclick="switchTab('dashboard')" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs font-medium rounded shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
                                         Exit
                                     </button>
                                 </div>
@@ -872,37 +874,40 @@
                 <!-- 3 Columns Top Section (Matching Gambar 2) -->
                 <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
                     
-                    <!-- Left Section: Date Filter & Action Buttons (Col 3) -->
-                    <div class="xl:col-span-3 space-y-3">
-                        <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg flex flex-col justify-between h-full">
-                            <div>
-                                <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Pilih Periode Alarm</h3>
-                                
-                                <!-- Date Picker (November 2025 default) -->
-                                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 mb-3">
-                                    <label class="block text-[11px] text-slate-400 mb-1 font-semibold">Tanggal Event:</label>
-                                    <input type="date" id="alarm-date-picker" value="2025-11-14" 
-                                           class="w-full bg-slate-900 border border-slate-700 text-xs text-cyan-300 rounded px-2 py-1.5 font-mono focus:outline-none focus:border-cyan-500">
-                                    <div class="flex items-center justify-between text-[10px] text-slate-400 mt-2 pt-1 border-t border-slate-800/80">
-                                        <span>Total Alarm DB:</span>
-                                        <span id="alarm-total-counter" class="font-bold text-rose-400 font-mono">4.230</span>
-                                    </div>
+                    <!-- Left Section: Calendar + Action Buttons (Matching Historis Okupasi & Gambar 2/3) -->
+                    <div class="xl:col-span-4 bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg flex flex-col justify-between">
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <!-- Calendar Component (Replika Historis Okupasi) -->
+                            <div class="flex-1 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span id="alarm-cal-month-year" class="text-xs font-bold text-rose-400">November 2025</span>
+                                    <input type="date" id="alarm-date-picker" value="2025-11-14" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded px-1.5 py-0.5 font-mono">
+                                </div>
+                                <div class="grid grid-cols-7 gap-1 text-center text-[10px] text-slate-400 mb-1 font-semibold">
+                                    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                                </div>
+                                <div id="alarm-cal-grid" class="grid grid-cols-7 gap-1 text-center text-[11px] font-mono">
+                                    <!-- Dynamic days rendered by JS -->
+                                </div>
+                                <div class="mt-2 text-[10px] text-slate-400 border-t border-slate-800 pt-1 flex justify-between items-center">
+                                    <span>Total: <strong id="alarm-total-counter" class="text-rose-400 font-mono">4.230</strong></span>
+                                    <span class="text-rose-400 font-semibold cursor-pointer hover:underline" id="alarm-cal-quick-select">Pilih 14 Nov</span>
                                 </div>
                             </div>
 
-                            <!-- Buttons Stack (Matching Gambar 2: Alarm, Export, Exit) -->
-                            <div class="space-y-2 mt-2">
-                                <button id="btn-alarm-mode" class="w-full py-2.5 px-3 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs rounded-lg shadow-md shadow-rose-600/30 transition-all flex items-center justify-center gap-2">
+                            <!-- Action Buttons Stack (Matching Historis Okupasi & Gambar 2) -->
+                            <div class="flex flex-col justify-between gap-2 min-w-[130px]">
+                                <button id="btn-alarm-mode" class="px-3.5 py-2 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs rounded shadow transition-all flex items-center justify-center gap-1.5">
                                     <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                                    Alarm Mode (Aktif)
+                                    Alarm Mode
                                 </button>
-                                <button id="btn-export-alarm-csv" onclick="exportAlarmDataCSV()" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-medium rounded-lg shadow transition-all flex items-center justify-center gap-1.5">
+                                <button id="btn-export-alarm-csv" onclick="exportAlarmDataCSV()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-medium rounded shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                                     <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                    Export Alarm CSV
+                                    Export to CSV
                                 </button>
-                                <button onclick="switchTab('dashboard')" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs font-medium rounded-lg shadow transition-all flex items-center justify-center gap-1.5">
+                                <button onclick="switchTab('dashboard')" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs font-medium rounded shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                                     <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
-                                    Exit ke Dashboard
+                                    Exit
                                 </button>
                             </div>
                         </div>
@@ -939,8 +944,8 @@
                         </div>
                     </div>
 
-                    <!-- Right Section: Chart 116 & Chart 115 with Red Alarm Spikes (Col 5 - Matching Gambar 2) -->
-                    <div class="xl:col-span-5 bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg space-y-3">
+                    <!-- Right Section: Chart 116 & Chart 115 with Red Alarm Spikes (Col 4 - Matching Gambar 2) -->
+                    <div class="xl:col-span-4 bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg space-y-3">
                         <!-- Chart Pilar 116 (Atas) -->
                         <div>
                             <div class="flex items-center justify-between mb-1">

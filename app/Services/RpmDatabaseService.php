@@ -15,9 +15,13 @@ class RpmDatabaseService
 
     public function __construct()
     {
+        $reqDb = request('db') ?: request()->header('X-RPM-DB');
+        $cacheDb = Cache::get('rpm_active_db');
         $sessionDb = session('rpm_active_db');
-        if ($sessionDb && in_array($sessionDb, ['rpm_1.db', 'rpm.db', 'rpm_22.db', 'log.db'])) {
-            $this->activeDb = $sessionDb;
+
+        $candidate = $reqDb ?: ($cacheDb ?: $sessionDb);
+        if ($candidate && in_array($candidate, ['rpm_1.db', 'rpm.db', 'rpm_22.db', 'log.db'])) {
+            $this->activeDb = $candidate;
         }
     }
 
@@ -30,8 +34,19 @@ class RpmDatabaseService
     {
         if (in_array($dbName, ['rpm_1.db', 'rpm.db', 'rpm_22.db', 'log.db'])) {
             $this->activeDb = $dbName;
-            session(['rpm_active_db' => $dbName]);
+            Cache::forever('rpm_active_db', $dbName);
+            try {
+                session(['rpm_active_db' => $dbName]);
+            } catch (\Throwable $e) {}
             $this->pdo = null; // reset connection
+
+            // Invalidate cached values for all dbs or this db
+            Cache::forget('rpm_dashboard_stats_' . $dbName);
+            Cache::forget('rpm_pillars_summary_' . $dbName);
+            Cache::forget('rpm_daily_charts_' . $dbName);
+            Cache::forget('rpm_avail_dates_' . $dbName);
+            Cache::forget('rpm_dashboard_stats_rpm_1.db');
+            Cache::forget('rpm_dashboard_stats_rpm.db');
             return true;
         }
         return false;
@@ -801,20 +816,19 @@ class RpmDatabaseService
      */
     public function getVehiclesByDate(string $date): array
     {
-        $cacheKey = 'rpm_vehicles_' . $date;
+        $cacheKey = 'rpm_vehicles_' . $this->activeDb . '_' . $date;
         return Cache::remember($cacheKey, 600, function () use ($date) {
             // Parse date to YYMMDD format
             $timestamp = strtotime($date);
             if (!$timestamp) {
-                $timestamp = strtotime('2025-11-15');
+                $timestamp = ($this->activeDb === 'rpm.db') ? strtotime('2025-11-20') : strtotime('2025-11-14');
             }
             $yymmdd = date('ymd', $timestamp);
             $minIdk = (int)($yymmdd . '000000');
             $maxIdk = (int)($yymmdd . '235959');
 
-            // Choose appropriate db: 2025-11-15 onwards is in rpm.db, earlier is in rpm_1.db
-            $targetDb = (strtotime($date) >= strtotime('2025-11-14 10:00:00')) ? 'rpm.db' : 'rpm_1.db';
-            $pdo = $this->getConnection($targetDb);
+            // Query active DB first
+            $pdo = $this->getConnection();
 
             try {
                 $stmt = $pdo->prepare("
@@ -831,8 +845,8 @@ class RpmDatabaseService
                 $rows = $stmt->fetchAll();
 
                 if (empty($rows)) {
-                    // If no records on that specific day in targetDb, try the other DB
-                    $altDb = ($targetDb === 'rpm.db') ? 'rpm_1.db' : 'rpm.db';
+                    // Fallback to companion DB if active DB has no records for this date
+                    $altDb = ($this->activeDb === 'rpm.db') ? 'rpm_1.db' : 'rpm.db';
                     $altPdo = $this->getConnection($altDb);
                     $stmt2 = $altPdo->prepare("
                         SELECT IDK, MIN(TANGGAL) as tgl, COUNT(*) as points, MAX(A1) as max_a1, MAX(B1) as max_b1
@@ -873,10 +887,10 @@ class RpmDatabaseService
      */
     public function getVehicleProfile(string $idk): array
     {
-        $cacheKey = 'rpm_profile_' . $idk;
+        $cacheKey = 'rpm_profile_' . $this->activeDb . '_' . $idk;
         return Cache::remember($cacheKey, 600, function () use ($idk) {
-            // Check both rpm.db and rpm_1.db
-            $databases = ['rpm.db', 'rpm_1.db'];
+            // Prioritize active database first
+            $databases = array_unique([$this->activeDb, 'rpm.db', 'rpm_1.db']);
             $rows = [];
 
             foreach ($databases as $dbName) {
@@ -988,8 +1002,12 @@ class RpmDatabaseService
         return Cache::remember($cacheKey, 300, function () {
             try {
                 $pdo = $this->getConnection();
-                $stmt = $pdo->query("SELECT DISTINCT substr(TANGGAL, 1, 10) as tgl FROM tblAlarm WHERE TANGGAL IS NOT NULL AND length(TANGGAL) >= 10 ORDER BY tgl DESC");
+                $stmt = $pdo->query("SELECT DISTINCT substr(TANGGAL, 1, 10) as tgl FROM tblAlarm WHERE TANGGAL IS NOT NULL AND length(TANGGAL) >= 10 ORDER BY tgl DESC LIMIT 30");
                 $rows = $stmt->fetchAll();
+                if (empty($rows)) {
+                    $stmt = $pdo->query("SELECT DISTINCT substr(TANGGAL, 1, 10) as tgl FROM tblOkupasi WHERE TANGGAL IS NOT NULL AND length(TANGGAL) >= 10 ORDER BY tgl DESC LIMIT 30");
+                    $rows = $stmt->fetchAll();
+                }
                 $dates = [];
                 foreach ($rows as $r) {
                     $tgl = trim($r['tgl'] ?? '');
@@ -1009,7 +1027,7 @@ class RpmDatabaseService
                             '2025-10-29' => '29 Oktober 2025',
                             '2025-10-19' => '19 Oktober 2025',
                         ];
-                    } else {
+                    } elseif ($this->activeDb === 'rpm.db') {
                         return [
                             '2025-11-29' => '29 November 2025',
                             '2025-11-28' => '28 November 2025',
@@ -1020,13 +1038,24 @@ class RpmDatabaseService
                             '2025-11-15' => '15 November 2025',
                             '2025-11-14' => '14 November 2025',
                         ];
+                    } else {
+                        return [
+                            '2025-11-14' => '14 November 2025',
+                        ];
                     }
                 }
                 return $dates;
             } catch (Exception $e) {
+                if ($this->activeDb === 'rpm.db') {
+                    return [
+                        '2025-11-29' => '29 November 2025',
+                        '2025-11-20' => '20 November 2025',
+                        '2025-11-15' => '15 November 2025',
+                    ];
+                }
                 return [
                     '2025-11-14' => '14 November 2025',
-                    '2025-11-15' => '15 November 2025',
+                    '2025-11-13' => '13 November 2025',
                 ];
             }
         });
