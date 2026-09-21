@@ -12,6 +12,7 @@ $storageDirs = [
     '/tmp/storage/framework/sessions',
     '/tmp/storage/framework/views',
     '/tmp/storage/logs',
+    '/tmp/cache',
 ];
 
 foreach ($storageDirs as $dir) {
@@ -21,15 +22,23 @@ foreach ($storageDirs as $dir) {
 }
 
 $_SERVER['SCRIPT_NAME'] = '/index.php';
+putenv('APP_STORAGE=/tmp/storage');
+$_ENV['APP_STORAGE'] = '/tmp/storage';
 
-require __DIR__ . '/../vendor/autoload.php';
+try {
+    require __DIR__ . '/../vendor/autoload.php';
 
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+    $app = require_once __DIR__ . '/../bootstrap/app.php';
 
-$kernel = $app->make(Kernel::class);
+    $kernel = $app->make(Kernel::class);
 
-$response = $kernel->handle(
-    $request = Request::capture()
-)->send();
+    $response = $kernel->handle(
+        $request = Request::capture()
+    )->send();
 
-$kernel->terminate($request, $response);
+    $kernel->terminate($request, $response);
+} catch (\Throwable $e) {
+    http_response_code(500);
+    echo "<h1>Laravel Serverless Error</h1>";
+    echo "<pre>" . htmlspecialchars($e->getMessage() . "\n\nTrace:\n" . $e->getTraceAsString()) . "</pre>";
+}
