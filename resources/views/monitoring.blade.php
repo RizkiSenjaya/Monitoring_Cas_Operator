@@ -815,6 +815,7 @@
                                     <img id="vehicle-snapshot-img"
                                          src="/api/historis/snapshot/251115095949"
                                          alt="Camera 01 Snapshot"
+                                         onerror="this.onerror=null; this.src='/images/no-vehicle-snapshot.jpg';"
                                          class="w-full h-full object-cover rounded">
                                     
                                     <!-- Camera 01 overlay label (Matching Image 1) -->
@@ -998,6 +999,7 @@
                                     <img id="alarm-vehicle-snapshot-img"
                                          src="/api/historis/snapshot/251114151413"
                                          alt="Snapshot Alarm"
+                                         onerror="this.onerror=null; this.src='/images/no-vehicle-snapshot.jpg';"
                                          class="w-full h-full object-cover rounded">
                                     
                                     <div class="absolute top-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono text-emerald-400 font-bold border border-emerald-500/30" id="alarm-snapshot-overlay">
@@ -1041,13 +1043,7 @@
                             </div>
 
                             <!-- Button Export PDF Profile below Detail Table -->
-                            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-3 border-t border-slate-800">
-                                <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    <span>Cetak laporan profil lengkap untuk kendaraan alarm terpilih (Chart, Snapshot, & Data Sensor per detik).</span>
-                                </div>
+                            <div class="flex justify-end pt-3 mt-3 border-t border-slate-800">
                                 <button id="btn-export-alarm-profile-pdf" type="button" onclick="exportAlarmProfilePDF()"
                                         class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
                                     <svg class="w-3.5 h-3.5 text-rose-200" fill="currentColor" viewBox="0 0 20 20">

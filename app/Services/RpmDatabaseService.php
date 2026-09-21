@@ -1243,6 +1243,15 @@ class RpmDatabaseService
         $results = [];
         $idks = array_slice($idks, 0, 1000);
 
+        $fallbackBase64 = null;
+        $fallbackThumb = public_path('images/no-vehicle-thumb.jpg');
+        if (file_exists($fallbackThumb)) {
+            $rawFallback = @file_get_contents($fallbackThumb);
+            if ($rawFallback) {
+                $fallbackBase64 = 'data:image/jpeg;base64,' . base64_encode($rawFallback);
+            }
+        }
+
         foreach ($idks as $idk) {
             $idk = (string)$idk;
             $path = $this->getThumbnailPath($idk, $width, $height);
@@ -1253,7 +1262,7 @@ class RpmDatabaseService
                     continue;
                 }
             }
-            $results[$idk] = null;
+            $results[$idk] = $fallbackBase64;
         }
 
         return $results;

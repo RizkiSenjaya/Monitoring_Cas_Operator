@@ -2209,33 +2209,155 @@ async function exportAlarmProfilePDF() {
         }
     }
 
-    // Section 2: Chart Profil Radiasi Alarm Kendaraan
-    const chartCanvas = document.getElementById('chart-alarm-profile-lines');
-    if (chartCanvas && chartCanvas.width > 0) {
+    // Section 2: Chart Profil Radiasi Alarm Kendaraan (Clean Publication Style Matching Tables)
+    const pData = state.currentAlarmProfileData;
+    let chartData = pData?.chart_data;
+    if (!chartData && pData?.table_data && pData.table_data.length > 0) {
+        chartData = {
+            labels: pData.table_data.map((_, idx) => String(idx)),
+            profil_a1: pData.table_data.map(r => r.A1 ?? 0),
+            profil_a2: pData.table_data.map(r => r.A2 ?? 0),
+            profil_b1: pData.table_data.map(r => r.B1 ?? 0),
+            profil_b2: pData.table_data.map(r => r.B2 ?? 0),
+        };
+    }
+
+    if (chartData && chartData.labels && chartData.labels.length > 0) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(159, 18, 57);
         doc.text('CHART PROFIL RADIASI ALARM KENDARAAN (DETEKTOR A1, A2, B1, B2)', 14, startY + 3);
 
         try {
+            // Render high-resolution publication-quality clean light chart matching table aesthetics
             const offCanvas = document.createElement('canvas');
-            offCanvas.width = chartCanvas.width;
-            offCanvas.height = chartCanvas.height;
+            offCanvas.width = 1200;
+            offCanvas.height = 380;
             const offCtx = offCanvas.getContext('2d');
-            offCtx.fillStyle = '#0F1A30';
+            offCtx.fillStyle = '#FFFFFF';
             offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
-            offCtx.drawImage(chartCanvas, 0, 0);
-            const chartDataUrl = offCanvas.toDataURL('image/jpeg', 0.92);
 
-            doc.setFillColor(15, 26, 48);
-            doc.roundedRect(14, startY + 6, 182, 54, 2, 2, 'F');
-            doc.setDrawColor(244, 63, 94);
-            doc.roundedRect(14, startY + 6, 182, 54, 2, 2, 'D');
+            const tempChart = new Chart(offCanvas, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: 'Detektor A1',
+                            data: chartData.profil_a1,
+                            borderColor: '#0284C7',
+                            backgroundColor: '#0284C7',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#0284C7'
+                        },
+                        {
+                            label: 'Detektor A2',
+                            data: chartData.profil_a2,
+                            borderColor: '#16A34A',
+                            backgroundColor: '#16A34A',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#16A34A'
+                        },
+                        {
+                            label: 'Detektor B1',
+                            data: chartData.profil_b1,
+                            borderColor: '#D97706',
+                            backgroundColor: '#D97706',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#D97706'
+                        },
+                        {
+                            label: 'Detektor B2',
+                            data: chartData.profil_b2,
+                            borderColor: '#E11D48',
+                            backgroundColor: '#E11D48',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#E11D48'
+                        }
+                    ]
+                },
+                options: {
+                    animation: false,
+                    responsive: false,
+                    devicePixelRatio: 1,
+                    layout: {
+                        padding: { top: 10, right: 25, bottom: 10, left: 15 }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'center',
+                            labels: {
+                                color: '#1E293B',
+                                font: { family: 'Helvetica', size: 12, weight: 'bold' },
+                                boxWidth: 15,
+                                boxHeight: 12,
+                                padding: 16,
+                                usePointStyle: true,
+                                pointStyle: 'rectRounded'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Waktu Relatif / Detik (s)',
+                                color: '#475569',
+                                font: { family: 'Helvetica', size: 11, weight: 'bold' }
+                            },
+                            grid: { color: '#E2E8F0', lineWidth: 1 },
+                            ticks: { color: '#475569', font: { family: 'Helvetica', size: 10 } },
+                            border: { color: '#CBD5E1' }
+                        },
+                        y: {
+                            min: 0,
+                            title: {
+                                display: true,
+                                text: 'Laju Cacah Radiasi (cps)',
+                                color: '#475569',
+                                font: { family: 'Helvetica', size: 11, weight: 'bold' }
+                            },
+                            grid: { color: '#E2E8F0', lineWidth: 1 },
+                            ticks: { color: '#475569', font: { family: 'Helvetica', size: 10 } },
+                            border: { color: '#CBD5E1' }
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'chartWhiteBackgroundPlugin',
+                    beforeDraw: (c) => {
+                        const cctx = c.ctx;
+                        cctx.save();
+                        cctx.fillStyle = '#FFFFFF';
+                        cctx.fillRect(0, 0, c.width, c.height);
+                        cctx.restore();
+                    }
+                }]
+            });
 
-            doc.addImage(chartDataUrl, 'JPEG', 15, startY + 7, 180, 52);
-            startY += 66;
+            const chartDataUrl = offCanvas.toDataURL('image/png');
+            tempChart.destroy();
+
+            // Render clean white card matching table aesthetic
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(14, startY + 6, 182, 58, 2, 2, 'F');
+            doc.setDrawColor(226, 232, 240);
+            doc.roundedRect(14, startY + 6, 182, 58, 2, 2, 'D');
+
+            doc.addImage(chartDataUrl, 'PNG', 14.5, startY + 6.5, 181, 57);
+            startY += 68;
         } catch (err) {
-            console.warn('Could not render chart canvas to profile PDF:', err);
+            console.warn('Could not render publication-styled chart to profile PDF:', err);
             startY += 8;
         }
     }

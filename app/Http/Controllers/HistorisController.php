@@ -89,24 +89,16 @@ class HistorisController extends Controller
             ]);
         }
 
-        // Fallback: Return a visually rich SVG placeholder indicating Camera 01 capture
-        $svg = <<<SVG
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" fill="none">
-  <rect width="640" height="360" fill="#0B132B"/>
-  <rect x="20" y="20" width="600" height="320" rx="12" stroke="#1E293B" stroke-width="2" stroke-dasharray="6 6"/>
-  <circle cx="320" cy="150" r="45" fill="#132042" stroke="#00E5FF" stroke-width="2"/>
-  <path d="M305 150H335M320 135V165" stroke="#00E5FF" stroke-width="2" stroke-linecap="round"/>
-  <text x="320" y="225" fill="#94A3B8" font-family="sans-serif" font-size="14" font-weight="600" text-anchor="middle">SNAPSHOT KAMERA 01</text>
-  <text x="320" y="250" fill="#64748B" font-family="sans-serif" font-size="12" text-anchor="middle">IDK: {$idk}</text>
-  <rect x="30" y="30" width="130" height="28" rx="6" fill="#0F172A" fill-opacity="0.8"/>
-  <text x="95" y="49" fill="#10B981" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="middle">LIVE RPM CAM 01</text>
-</svg>
-SVG;
+        // Fallback: Return clean vehicle placeholder image (truck silhouette matching Image 2)
+        $fallback = public_path('images/no-vehicle-snapshot.jpg');
+        if (file_exists($fallback)) {
+            return response()->file($fallback, [
+                'Content-Type' => 'image/jpeg',
+                'Cache-Control' => 'no-cache',
+            ]);
+        }
 
-        return response($svg, 200, [
-            'Content-Type' => 'image/svg+xml',
-            'Cache-Control' => 'no-cache',
-        ]);
+        return response('Vehicle image not available', 404);
     }
 
     /**
@@ -123,21 +115,16 @@ SVG;
             ]);
         }
 
-        // Fallback: small SVG
-        $svg = <<<SVG
-<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" fill="none">
-  <rect width="120" height="80" fill="#0F172A"/>
-  <rect x="2" y="2" width="116" height="76" rx="4" stroke="#334155" stroke-width="1"/>
-  <circle cx="60" cy="35" r="14" fill="#1E293B" stroke="#0284C7" stroke-width="1.5"/>
-  <path d="M54 35H66M60 29V41" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
-  <text x="60" y="62" fill="#94A3B8" font-family="sans-serif" font-size="8" font-weight="600" text-anchor="middle">NO PHOTO</text>
-</svg>
-SVG;
+        // Fallback: clean vehicle truck thumbnail placeholder
+        $fallbackThumb = public_path('images/no-vehicle-thumb.jpg');
+        if (file_exists($fallbackThumb)) {
+            return response()->file($fallbackThumb, [
+                'Content-Type' => 'image/jpeg',
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
+        }
 
-        return response($svg, 200, [
-            'Content-Type' => 'image/svg+xml',
-            'Cache-Control' => 'public, max-age=86400',
-        ]);
+        return response('Thumbnail not available', 404);
     }
 
     /**
