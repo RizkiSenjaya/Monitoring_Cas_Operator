@@ -22,7 +22,7 @@
     "APP_NAME": "Monitoring RPM",
     "APP_KEY": "base64:CcmznheWo0vW/NVjQSUfi+9pT7Z5ptTCCk+0VgPiGoY=",
     "APP_ENV": "production",
-    "APP_DEBUG": "true",
+    "APP_DEBUG": "false",
     "APP_CONFIG_CACHE": "/tmp/cache/config.php",
     "APP_EVENTS_CACHE": "/tmp/cache/events.php",
     "APP_PACKAGES_CACHE": "/tmp/cache/packages.php",
@@ -32,6 +32,7 @@
     "CACHE_DRIVER": "array",
     "LOG_CHANNEL": "stderr",
     "SESSION_DRIVER": "cookie",
+    "SESSION_LIFETIME": "120",
     "APP_STORAGE": "/tmp/storage"
   }
 }
