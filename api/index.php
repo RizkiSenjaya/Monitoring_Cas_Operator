@@ -1,5 +1,10 @@
 <?php
 
+use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Http\Request;
+
+define('LARAVEL_START', microtime(true));
+
 // Prepare writable storage folders inside /tmp for Vercel serverless environment
 $storageDirs = [
     '/tmp/storage/app/public',
@@ -15,5 +20,16 @@ foreach ($storageDirs as $dir) {
     }
 }
 
-// Forward request to Laravel public entrypoint
-require __DIR__ . '/../public/index.php';
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$app = require_once __DIR__ . '/../bootstrap/app.php';
+
+$kernel = $app->make(Kernel::class);
+
+$response = $kernel->handle(
+    $request = Request::capture()
+)->send();
+
+$kernel->terminate($request, $response);
