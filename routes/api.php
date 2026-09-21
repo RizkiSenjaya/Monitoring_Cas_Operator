@@ -25,6 +25,7 @@ Route::prefix('dashboard')->group(function () {
 Route::prefix('historis')->group(function () {
     Route::get('/available-dates', [HistorisController::class, 'availableDates']);
     Route::get('/vehicles', [HistorisController::class, 'vehicles']);
+    Route::get('/alarm-vehicles', [HistorisController::class, 'alarmVehicles']);
     Route::get('/profile/{idk}', [HistorisController::class, 'profile']);
     Route::get('/snapshot/{idk}', [HistorisController::class, 'snapshot']);
 });

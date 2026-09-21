@@ -42,6 +42,10 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
+    <!-- jsPDF & jspdf-autotable for client-side PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
     <!-- Firebase App & Auth SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -728,16 +732,20 @@
                                 </div>
                             </div>
 
-                            <!-- Action Buttons Under Date/Calendar (3 Buttons Row) -->
-                            <div class="grid grid-cols-3 gap-2.5 mt-3">
-                                <button type="button" id="btn-okupasi-data" class="w-full py-2 px-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-cyan-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                            <!-- Action Buttons Under Date/Calendar (4 Buttons: Okupasi Data, Export CSV, Export PDF, Exit) -->
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                                <button type="button" id="btn-okupasi-data" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-cyan-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
                                     <span class="truncate">Okupasi Data</span>
                                 </button>
-                                <button type="button" id="btn-export-okupasi-csv" onclick="exportOkupasiDataCSV()" class="w-full py-2 px-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                <button type="button" id="btn-export-okupasi-csv" onclick="exportOkupasiDataCSV()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
                                     <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                    <span class="truncate">Export to CSV</span>
+                                    <span class="truncate">Export CSV</span>
                                 </button>
-                                <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                <button type="button" id="btn-export-okupasi-pdf" onclick="exportOkupasiDataPDF()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-rose-950/60 active:bg-slate-900 border border-slate-700 hover:border-rose-500/50 text-xs font-semibold text-slate-200 hover:text-rose-300 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                    <svg class="w-3.5 h-3.5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1m0 4h6m-6 4h6"/></svg>
+                                    <span class="truncate">Export PDF</span>
+                                </button>
+                                <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
                                     <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
                                     <span>Exit</span>
                                 </button>
@@ -747,7 +755,10 @@
                         <!-- Vehicle List Table (Image 1) -->
                         <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg">
                             <div class="flex items-center justify-between mb-3">
-                                <h3 class="text-xs font-bold text-white uppercase tracking-wider">Vehicle List</h3>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-xs font-bold text-white uppercase tracking-wider">Vehicle List</h3>
+                                    <span id="historis-vehicle-count" class="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-[10px] font-bold">0 Kendaraan</span>
+                                </div>
                                 <button type="button" id="btn-tampil-profile" class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-bold text-xs rounded-lg shadow-sm shadow-cyan-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                     Tampil Profile
@@ -855,115 +866,181 @@
             <!-- ==================================================== -->
             <!-- TAB 3: ALARM VIEW (Replika Alarm RPM Sesuai Gambar 2) -->
             <!-- ==================================================== -->
+            <!-- ==================================================== -->
+            <!-- TAB 3: ALARM VIEW (Replika Alarm RPM Sesuai Gambar UI)-->
+            <!-- ==================================================== -->
             <div data-tab-view="alarm" class="space-y-4 hidden">
                 
-                <!-- Desktop Title Bar Replica (Matching Gambar 2 "Alarm RPM") -->
-                <div class="flex items-center justify-between bg-slate-900/90 border border-slate-700/80 px-4 py-2.5 rounded-lg shadow-md">
+                <!-- Desktop Title Bar Replica -->
+                <div class="flex items-center justify-between bg-slate-900/90 border border-rose-500/30 px-4 py-2.5 rounded-lg shadow-md">
                     <div class="flex items-center gap-2">
                         <div class="w-3 h-3 rounded-full bg-rose-500 animate-pulse"></div>
-                        <h2 class="text-base font-bold text-white tracking-wide">Alarm RPM</h2>
+                        <h2 class="text-base font-bold text-white tracking-wide">Data Alarm RPM</h2>
                         <span class="text-xs text-rose-400 font-medium px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30">Monitoring & Verifikasi Alarm Radiasi</span>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="text-xs text-slate-400 font-mono">Database Aktif: <strong id="alarm-active-db-badge" class="text-cyan-400">rpm_1.db</strong></span>
+                        <span class="text-xs text-slate-400 font-mono">Database Aktif: <strong id="alarm-active-db-badge" class="text-rose-400">rpm_1.db</strong></span>
                         <span class="text-xs text-slate-500 font-mono">D:\CAS_OPERATOR (Read-Only)</span>
                     </div>
                 </div>
 
-                <!-- 3 Columns Top Section (Matching Gambar 2) -->
+                <!-- Layout 3 Columns (Left: Calendar & Alarm Vehicle List, Right: Chart & Snapshot + Detail Profile Grid) -->
                 <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
                     
-                    <!-- Left Section: Calendar + Action Buttons (Matching Historis Okupasi & Gambar 2/3) -->
-                    <div class="xl:col-span-4 bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg flex flex-col justify-between">
-                        <!-- Calendar Component (Replika Historis Okupasi - Full Width) -->
-                        <div class="w-full bg-slate-950 p-3.5 rounded-lg border border-slate-800">
+                    <!-- Left Section: Calendar + Buttons + Alarm Vehicle List (Col 4) -->
+                    <div class="xl:col-span-4 space-y-4">
+                        
+                        <!-- Top Box: Calendar & Buttons -->
+                        <div class="bg-[#0F1A30] border border-rose-500/20 rounded-xl p-4 shadow-lg">
+                            <!-- Calendar Component (Full Width) -->
+                            <div class="w-full bg-slate-950 p-3.5 rounded-lg border border-slate-800">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span id="alarm-cal-month-year" class="text-xs font-bold text-rose-400">November 2025</span>
+                                    <input type="date" id="alarm-date-picker" value="2025-11-14" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded px-2 py-0.5 font-mono">
+                                </div>
+                                <div class="grid grid-cols-7 gap-1 text-center text-[10px] text-slate-400 mb-1 font-semibold">
+                                    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                                </div>
+                                <div id="alarm-cal-grid" class="grid grid-cols-7 gap-1 text-center text-[11px] font-mono">
+                                    <!-- Dynamic days rendered by JS -->
+                                </div>
+                                <div class="mt-2 text-[10px] text-slate-400 border-t border-slate-800 pt-1 flex justify-between items-center">
+                                    <span>Total: <strong id="alarm-total-counter" class="text-rose-400 font-mono">0</strong></span>
+                                    <span class="text-rose-400 font-semibold cursor-pointer hover:underline" id="alarm-cal-quick-select">Pilih 14 Nov</span>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons Under Date/Calendar (4 Buttons Row: Alarm Mode, Export CSV, Export PDF, Exit) -->
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                                <button type="button" id="btn-alarm-refresh" class="w-full py-2 px-1.5 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs rounded-lg shadow-sm shadow-rose-900/30 transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping flex-shrink-0"></span>
+                                    <span class="truncate">Alarm Data</span>
+                                </button>
+                                <button type="button" id="btn-export-alarm-csv" onclick="exportAlarmDataCSV()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                    <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    <span class="truncate">Export CSV</span>
+                                </button>
+                                <button type="button" id="btn-export-alarm-pdf" onclick="exportAlarmDataPDF()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-rose-950/60 active:bg-slate-900 border border-slate-700 hover:border-rose-500/50 text-xs font-semibold text-slate-200 hover:text-rose-300 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                    <svg class="w-3.5 h-3.5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1m0 4h6m-6 4h6"/></svg>
+                                    <span class="truncate">Export PDF</span>
+                                </button>
+                                <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                    <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
+                                    <span>Exit</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Alarm Vehicle List Table (Matched with Historis Okupasi) -->
+                        <div class="bg-[#0F1A30] border border-rose-500/20 rounded-xl p-4 shadow-lg">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-xs font-bold text-white uppercase tracking-wider">Alarm Vehicle List</h3>
+                                    <span id="alarm-vehicle-count" class="px-2 py-0.5 bg-rose-500/20 text-rose-400 rounded text-[10px] font-bold">0 Alarm</span>
+                                </div>
+                                <button type="button" id="btn-alarm-tampil-profile" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-sm shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    Tampil Profile
+                                </button>
+                            </div>
+
+                            <div class="overflow-x-auto max-h-72 border border-slate-800 rounded">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold sticky top-0">
+                                        <tr>
+                                            <th class="py-1.5 px-2 text-center w-10">No</th>
+                                            <th class="py-1.5 px-2 text-center w-14">Detail</th>
+                                            <th class="py-1.5 px-2">IDK</th>
+                                            <th class="py-1.5 px-2">TGL</th>
+                                            <th class="py-1.5 px-2 text-center">Pilar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alarm-vehicle-list-tbody" class="divide-y divide-slate-800/80">
+                                        <tr><td colspan="5" class="py-4 text-center text-slate-500">Memuat kendaraan alarm...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right & Middle Section: Chart + Camera Snapshot (Col 8) -->
+                    <div class="xl:col-span-8 space-y-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                            <!-- Multi-line Profile Chart (7 Cols) -->
+                            <div class="lg:col-span-7 bg-[#0F1A30] border border-rose-500/20 rounded-xl p-4 shadow-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                                        <h3 class="text-xs font-bold text-white">Profil Radiasi Alarm Kendaraan</h3>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-[10px]">
+                                        <span class="text-blue-400 font-semibold">Profil_A1</span>
+                                        <span class="text-emerald-400 font-semibold">Profil_A2</span>
+                                        <span class="text-yellow-400 font-semibold">Profil_B1</span>
+                                        <span class="text-rose-400 font-semibold">Profil_B2</span>
+                                    </div>
+                                </div>
+                                <div class="h-64">
+                                    <canvas id="chart-alarm-profile-lines"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Vehicle Snapshot Camera (5 Cols) -->
+                            <div class="lg:col-span-5 bg-[#0F1A30] border border-rose-500/20 rounded-xl p-4 shadow-lg flex flex-col justify-between">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold text-white">Camera Snapshot (Alarm)</h3>
+                                    <span id="alarm-snapshot-pilar-badge" class="px-2 py-0.5 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded text-[10px] font-bold">PILAR 115</span>
+                                </div>
+
+                                <div class="relative bg-slate-950 border border-slate-800 rounded-lg overflow-hidden flex-1 min-h-[190px] flex items-center justify-center">
+                                    <!-- Image element for alarm snapshot -->
+                                    <img id="alarm-vehicle-snapshot-img"
+                                         src="/api/historis/snapshot/251114151413"
+                                         alt="Snapshot Alarm"
+                                         class="w-full h-full object-cover rounded">
+                                    
+                                    <div class="absolute top-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono text-emerald-400 font-bold border border-emerald-500/30" id="alarm-snapshot-overlay">
+                                        PILAR 115 • 2025-11-14 15:14:13
+                                    </div>
+                                    <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono text-cyan-300" id="alarm-snapshot-idk-overlay">
+                                        IDK: 251114151413
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Profile Data Grid Table (Matched with Historis Okupasi) -->
+                        <div class="bg-[#0F1A30] border border-rose-500/20 rounded-xl p-4 shadow-lg">
                             <div class="flex items-center justify-between mb-2">
-                                <span id="alarm-cal-month-year" class="text-xs font-bold text-rose-400">November 2025</span>
-                                <input type="date" id="alarm-date-picker" value="2025-11-14" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded px-2 py-0.5 font-mono">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-xs font-bold text-white uppercase tracking-wider">Detail Data Profil Sensor Alarm</h3>
+                                    <span id="alarm-profile-active-idk-badge" class="px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[10px] font-mono">IDK: -</span>
+                                </div>
+                                <span class="text-[11px] text-slate-400 font-mono">Tabel Tanggal & Profile Alarm</span>
                             </div>
-                            <div class="grid grid-cols-7 gap-1 text-center text-[10px] text-slate-400 mb-1 font-semibold">
-                                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
-                            </div>
-                            <div id="alarm-cal-grid" class="grid grid-cols-7 gap-1 text-center text-[11px] font-mono">
-                                <!-- Dynamic days rendered by JS -->
-                            </div>
-                            <div class="mt-2 text-[10px] text-slate-400 border-t border-slate-800 pt-1 flex justify-between items-center">
-                                <span>Total: <strong id="alarm-total-counter" class="text-rose-400 font-mono">4.230</strong></span>
-                                <span class="text-rose-400 font-semibold cursor-pointer hover:underline" id="alarm-cal-quick-select">Pilih 14 Nov</span>
+
+                            <div class="overflow-x-auto max-h-64 border border-slate-800 rounded-lg">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-900 border-b border-slate-800 text-slate-400 font-semibold sticky top-0">
+                                        <tr>
+                                            <th class="py-1.5 px-2.5">IDK</th>
+                                            <th class="py-1.5 px-2.5">TGL</th>
+                                            <th class="py-1.5 px-2.5 text-blue-400">A1</th>
+                                            <th class="py-1.5 px-2.5 text-emerald-400">A2</th>
+                                            <th class="py-1.5 px-2.5 text-yellow-400">B1</th>
+                                            <th class="py-1.5 px-2.5 text-rose-400">B2</th>
+                                            <th class="py-1.5 px-2.5">Latar A1</th>
+                                            <th class="py-1.5 px-2.5">Latar A2</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alarm-profile-grid-tbody" class="divide-y divide-slate-800/80">
+                                        <tr><td colspan="8" class="py-4 text-center text-slate-500">Pilih kendaraan alarm untuk menampilkan grid profile.</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
-                        <!-- Action Buttons Under Date/Calendar (3 Buttons Row) -->
-                        <div class="grid grid-cols-3 gap-2.5 mt-3">
-                            <button type="button" id="btn-alarm-mode" class="w-full py-2 px-2 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs rounded-lg shadow-sm shadow-rose-900/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                <span class="w-2 h-2 rounded-full bg-white animate-ping flex-shrink-0"></span>
-                                <span class="truncate">Alarm Mode</span>
-                            </button>
-                            <button type="button" id="btn-export-alarm-csv" onclick="exportAlarmDataCSV()" class="w-full py-2 px-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                <span class="truncate">Export to CSV</span>
-                            </button>
-                            <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
-                                <span>Exit</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Center Section: Snapshot Camera Frame (Col 4 - Matching Gambar 2) -->
-                    <div class="xl:col-span-4 bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg flex flex-col justify-between">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                Snapshot Kamera Portal
-                            </h3>
-                            <span id="alarm-snapshot-pilar-badge" class="px-2 py-0.5 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded text-[10px] font-bold">PILAR 115</span>
-                        </div>
-
-                        <div class="relative bg-slate-950 border border-slate-800 rounded-lg overflow-hidden flex-1 min-h-[190px] flex items-center justify-center">
-                            <!-- Image element for alarm snapshot -->
-                            <img id="alarm-snapshot-img"
-                                 src="/api/historis/snapshot/251114205030"
-                                 alt="Snapshot Alarm"
-                                 class="w-full h-full object-cover rounded">
-                            
-                            <!-- Overlays matching Gambar 2 -->
-                            <div class="absolute top-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono text-emerald-400 font-bold border border-emerald-500/30" id="alarm-snapshot-overlay">
-                                PILAR 115 • 2025-11-14 15:14:13
-                            </div>
-                            <div class="absolute bottom-2 left-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono text-cyan-300" id="alarm-snapshot-idk-overlay">
-                                IDK: 251114151413
-                            </div>
-                        </div>
-
-                        <div class="mt-2 text-[11px] text-slate-400 text-center font-mono">
-                            Klik baris tabel di bawah untuk melihat foto kendaraan & grafik spesifik
-                        </div>
-                    </div>
-
-                    <!-- Right Section: Chart 116 & Chart 115 with Red Alarm Spikes (Col 4 - Matching Gambar 2) -->
-                    <div class="xl:col-span-4 bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg space-y-3">
-                        <!-- Chart Pilar 116 (Atas) -->
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-bold text-blue-400">Chart Pilar 116 (Portal Kanan)</span>
-                                <span class="text-[10px] text-slate-400 font-mono">Det 1 & Det 2 (CPS)</span>
-                            </div>
-                            <div class="h-28">
-                                <canvas id="chart-alarm-pilar116"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- Chart Pilar 115 (Bawah) -->
-                        <div class="border-t border-slate-800/80 pt-2">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-bold text-cyan-400">Chart Pilar 115 (Portal Kiri)</span>
-                                <span class="text-[10px] text-slate-400 font-mono">Det 1 & Det 2 (CPS)</span>
-                            </div>
-                            <div class="h-28">
-                                <canvas id="chart-alarm-pilar115"></canvas>
-                            </div>
-                        </div>
                     </div>
 
                 </div>
@@ -998,7 +1075,7 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto max-h-[420px] border border-slate-800/80 rounded-lg">
+                    <div class="overflow-x-auto max-h-[350px] border border-slate-800/80 rounded-lg">
                         <table class="w-full text-left text-xs">
                             <thead class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 bg-[#0F1A30] z-10 shadow-sm">
                                 <tr>

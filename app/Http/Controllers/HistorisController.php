@@ -46,6 +46,22 @@ class HistorisController extends Controller
     }
 
     /**
+     * Get alarm vehicle list for the specified date
+     */
+    public function alarmVehicles(Request $request): JsonResponse
+    {
+        $date = $request->query('date', '2025-11-14');
+        $vehicles = $this->rpmService->getAlarmVehiclesByDate($date);
+
+        return response()->json([
+            'status' => 'success',
+            'date' => $date,
+            'total' => count($vehicles),
+            'data' => $vehicles
+        ]);
+    }
+
+    /**
      * Get profile time-series data for a vehicle IDK
      */
     public function profile(string $idk): JsonResponse

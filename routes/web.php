@@ -26,6 +26,7 @@ Route::prefix('api')->group(function () {
 
     Route::get('/historis/available-dates', [HistorisController::class, 'availableDates']);
     Route::get('/historis/vehicles', [HistorisController::class, 'vehicles']);
+    Route::get('/historis/alarm-vehicles', [HistorisController::class, 'alarmVehicles']);
     Route::get('/historis/profile/{idk}', [HistorisController::class, 'profile']);
     Route::get('/historis/snapshot/{idk}', [HistorisController::class, 'snapshot']);
 

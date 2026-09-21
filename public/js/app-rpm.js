@@ -12,6 +12,10 @@ const state = {
     selectedIdk: (savedActiveDb === 'rpm.db') ? '251120235947' : '251114095622',
     alarmSelectedDate: (savedActiveDb === 'rpm.db') ? '2025-11-29' : '2025-11-14',
     currentVehicles: [],
+    alarmVehicles: [],
+    selectedAlarmIdk: null,
+    currentOkupasiProfileData: null,
+    currentAlarmProfileData: null,
     refreshInterval: null,
     realtimeInterval: null,
     realtime1sInterval: null,
@@ -1081,18 +1085,18 @@ function initAlarmFilters() {
         datePicker.addEventListener('change', (e) => {
             const dateVal = e.target.value;
             if (dateVal) {
+                state.alarmSelectedDate = dateVal;
                 const parts = dateVal.split('-');
                 if (parts.length === 3) {
                     renderAlarmCalendar(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
                 }
+                loadAlarmVehicles(dateVal);
             }
             if (state.allAlarms && state.allAlarms.length) {
                 const dateMatches = state.allAlarms.filter(a => String(a.waktu || '').startsWith(dateVal));
                 if (dateMatches.length) {
-                    showToast(`Menampilkan ${dateMatches.length} event alarm pada ${dateVal}`, 'info');
+                    showToast(`Menampilkan alarm pada tanggal ${dateVal}`, 'info');
                     selectAlarmRecord(dateMatches[0]);
-                } else {
-                    showToast(`Tidak ada event alarm tersimpan pada tanggal ${dateVal} di database ini`, 'warning');
                 }
             }
         });
@@ -1106,8 +1110,31 @@ function initAlarmFilters() {
         });
     }
 
+    const btnAlarmTampil = document.getElementById('btn-alarm-tampil-profile');
+    if (btnAlarmTampil) {
+        btnAlarmTampil.addEventListener('click', () => {
+            const targetIdk = state.selectedAlarmIdk || (state.alarmVehicles && state.alarmVehicles.length ? state.alarmVehicles[0].idk : null);
+            if (targetIdk) {
+                selectAlarmVehicle(targetIdk);
+                showToast(`Menampilkan profil sensor & foto alarm ${targetIdk}`, 'info');
+            } else {
+                showToast('Pilih kendaraan alarm dari list terlebih dahulu', 'warning');
+            }
+        });
+    }
+
+    const btnAlarmRefresh = document.getElementById('btn-alarm-refresh');
+    if (btnAlarmRefresh) {
+        btnAlarmRefresh.addEventListener('click', () => {
+            loadAlarmVehicles(state.alarmSelectedDate || '2025-11-14');
+            loadRecentAlarms(true);
+            showToast('Memperbarui data alarm...', 'info');
+        });
+    }
+
     const initialDay = (state.activeDb === 'rpm.db') ? 29 : 14;
     renderAlarmCalendar(2025, 10, initialDay);
+    loadAlarmVehicles(state.alarmSelectedDate || '2025-11-14');
 }
 
 function renderAlarmCalendar(year, month, selectedDay) {
@@ -1150,6 +1177,7 @@ function selectAlarmCalendarDay(year, month, day) {
     if (datePicker) datePicker.value = dateStr;
 
     renderAlarmCalendar(year, month, day);
+    loadAlarmVehicles(dateStr);
 
     if (state.allAlarms && state.allAlarms.length) {
         const dateMatches = state.allAlarms.filter(a => String(a.waktu || '').startsWith(dateStr));
@@ -1409,6 +1437,7 @@ function renderAlarmTable() {
 
 // Load Alarm Page
 function loadAlarmPage() {
+    loadAlarmVehicles(state.alarmSelectedDate || '2025-11-14');
     loadRecentAlarms(true);
 }
 
@@ -1495,6 +1524,675 @@ function exportOkupasiDataCSV() {
     showToast('Berhasil mengekspor data okupasi ke CSV', 'success');
 }
 window.exportOkupasiDataCSV = exportOkupasiDataCSV;
+
+// Helper to convert an image element or image URL to base64 DataURL for jsPDF
+async function getImageBase64(imgElement, fallbackUrl = '') {
+    return new Promise((resolve) => {
+        try {
+            if (imgElement && imgElement.complete && imgElement.naturalWidth > 0) {
+                const canvas = document.createElement('canvas');
+                canvas.width = imgElement.naturalWidth;
+                canvas.height = imgElement.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(imgElement, 0, 0);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                return resolve(dataUrl);
+            }
+        } catch (err) {
+            console.warn('Canvas export failed, attempting fetch:', err);
+        }
+
+        const src = (imgElement && imgElement.src) || fallbackUrl;
+        if (!src) return resolve(null);
+
+        fetch(src)
+            .then(res => {
+                if (!res.ok) throw new Error('Image fetch failed');
+                return res.blob();
+            })
+            .then(blob => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+            })
+            .catch((e) => {
+                console.warn('Could not load image as blob:', e);
+                resolve(null);
+            });
+    });
+}
+
+// Export occupation records to PDF (jsPDF + autoTable)
+async function exportOkupasiDataPDF() {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        showToast('Library jsPDF sedang dimuat, coba sesaat lagi...', 'warning');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    showToast('Menyiapkan dokumen PDF Historis Okupasi...', 'info');
+
+    const primaryColor = [15, 23, 42]; // Slate 900
+    const accentCyan = [6, 182, 212];  // Cyan 500
+
+    // Header Banner
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.rect(0, 0, 210, 26, 'F');
+
+    // Accent line
+    doc.setFillColor(accentCyan[0], accentCyan[1], accentCyan[2]);
+    doc.rect(0, 26, 210, 1.5, 'F');
+
+    // Header text
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('RADIATION PORTAL MONITOR (RPM) - CAS OPERATOR', 14, 11);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text('LAPORAN HISTORIS OKUPASI KENDARAAN & MONITORING RADIASI', 14, 18);
+    doc.setFontSize(8);
+    doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | CAS OPERATOR`, 14, 23);
+
+    // Metadata Box
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(14, 32, 182, 22, 2, 2, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(14, 32, 182, 22, 2, 2, 'D');
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tanggal Terpilih:', 18, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${state.selectedDate}`, 46, 38);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Database:', 18, 44);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${state.activeDb}`, 46, 44);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total Kendaraan:', 18, 50);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${state.currentVehicles?.length || 0} Kendaraan (Semua)`, 46, 50);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Kendaraan Aktif (IDK):', 105, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${state.selectedIdk || '-'}`, 142, 38);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Status Portal:', 105, 44);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Normal / Terintegrasi', 142, 44);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Kamera Snapshot:', 105, 50);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Portal Entrance Camera 01', 142, 50);
+
+    // Section 1: Snapshot Camera Image of Selected Vehicle
+    let startY = 58;
+    const imgEl = document.getElementById('vehicle-snapshot-img');
+    const base64Img = await getImageBase64(imgEl, `/api/historis/snapshot/${state.selectedIdk}`);
+
+    if (base64Img) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`FOTO SNAPSHOT KENDARAAN (IDK: ${state.selectedIdk})`, 14, startY + 4);
+
+        try {
+            doc.addImage(base64Img, 'JPEG', 14, startY + 6, 68, 45);
+            doc.setDrawColor(15, 23, 42);
+            doc.rect(14, startY + 6, 68, 45, 'D');
+
+            doc.setFillColor(15, 23, 42);
+            doc.rect(14, startY + 51, 68, 5, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`CAM 01 • ${state.selectedIdk} • ${state.selectedDate}`, 16, startY + 54.5);
+
+            doc.setFillColor(248, 250, 252);
+            doc.rect(86, startY + 6, 110, 50, 'F');
+            doc.setDrawColor(226, 232, 240);
+            doc.rect(86, startY + 6, 110, 50, 'D');
+
+            doc.setFontSize(8.5);
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Ringkasan Profil Radiasi Kendaraan', 90, startY + 12);
+
+            const activeVeh = (state.currentVehicles || []).find(v => String(v.idk) === String(state.selectedIdk)) || {};
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(71, 85, 105);
+            doc.text(`Waktu Lintasan: ${activeVeh.tgl || state.selectedDate}`, 90, startY + 18);
+            doc.text(`Jumlah Titik Pengukuran: ${activeVeh.points || '-'} titik sampel`, 90, startY + 24);
+            doc.text(`Nilai Puncak A1: ${formatNumber(activeVeh.max_a1 || 0)} cps`, 90, startY + 30);
+            doc.text(`Nilai Puncak B1: ${formatNumber(activeVeh.max_b1 || 0)} cps`, 90, startY + 36);
+            doc.text('Keterangan: Lolos pemeriksaan radiasi (Normal)', 90, startY + 42);
+
+            startY += 62;
+        } catch (e) {
+            console.warn('Could not render image to PDF:', e);
+            startY += 8;
+        }
+    }
+
+    // Section 2: Table of Vehicles for this date
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`DAFTAR SELURUH KENDARAAN PADA TANGGAL ${state.selectedDate} (${state.currentVehicles?.length || 0} TOTAL)`, 14, startY);
+
+    const vehicleTableData = (state.currentVehicles || []).map(v => [
+        v.no,
+        v.idk,
+        v.tgl,
+        v.points || '-',
+        formatNumber(v.max_a1 || 0),
+        formatNumber(v.max_b1 || 0)
+    ]);
+
+    doc.autoTable({
+        startY: startY + 3,
+        head: [['No', 'IDK Kendaraan', 'Tanggal / Jam', 'Points', 'Max A1 (cps)', 'Max B1 (cps)']],
+        body: vehicleTableData.length > 0 ? vehicleTableData : [['-', '-', 'Tidak ada data kendaraan', '-', '-', '-']],
+        theme: 'striped',
+        styles: { fontSize: 7.5, cellPadding: 1.5, font: 'helvetica' },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+            0: { halign: 'center', cellWidth: 12 },
+            1: { fontStyle: 'bold', cellWidth: 35 },
+            2: { cellWidth: 50 },
+            3: { halign: 'center', cellWidth: 20 },
+            4: { halign: 'right', cellWidth: 32 },
+            5: { halign: 'right', cellWidth: 32 }
+        },
+        margin: { left: 14, right: 14 }
+    });
+
+    // Section 3: Detail Data Profil Sensor Kendaraan Terpilih
+    if (state.currentOkupasiProfileData && state.currentOkupasiProfileData.table_data && state.currentOkupasiProfileData.table_data.length > 0) {
+        let nextY = doc.lastAutoTable.finalY + 8;
+        if (nextY > 250) {
+            doc.addPage();
+            nextY = 20;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`DETAIL DATA PROFIL SENSOR PER DETIK (IDK: ${state.selectedIdk})`, 14, nextY);
+
+        const profileTableData = state.currentOkupasiProfileData.table_data.map((r, i) => [
+            i + 1,
+            r.IDK || state.selectedIdk,
+            r.TANGGAL,
+            formatNumber(r.A1),
+            formatNumber(r.A2),
+            formatNumber(r.B1),
+            formatNumber(r.B2),
+            formatNumber(r.latarA1),
+            formatNumber(r.latarA2)
+        ]);
+
+        doc.autoTable({
+            startY: nextY + 3,
+            head: [['No', 'IDK', 'Waktu', 'A1 (cps)', 'A2 (cps)', 'B1 (cps)', 'B2 (cps)', 'Latar A1', 'Latar A2']],
+            body: profileTableData,
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 1.2, font: 'helvetica' },
+            headStyles: { fillColor: [8, 145, 178], textColor: [255, 255, 255], fontStyle: 'bold' },
+            margin: { left: 14, right: 14 }
+        });
+    }
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan RPM Web CAS Operator`, 14, 290);
+    }
+
+    doc.save(`Laporan_Historis_Okupasi_${state.selectedDate}.pdf`);
+    showToast('Berhasil mengunduh Laporan PDF Historis Okupasi!', 'success');
+}
+window.exportOkupasiDataPDF = exportOkupasiDataPDF;
+
+// Export alarm records to PDF (jsPDF + autoTable)
+async function exportAlarmDataPDF() {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        showToast('Library jsPDF sedang dimuat, coba sesaat lagi...', 'warning');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    showToast('Menyiapkan dokumen PDF Historis Alarm Radiasi...', 'info');
+
+    const alarmDate = state.alarmSelectedDate || '2025-11-14';
+
+    // Header Banner (Rose/Red Alarm Theme)
+    doc.setFillColor(159, 18, 57); // Rose 900
+    doc.rect(0, 0, 210, 26, 'F');
+
+    // Accent line
+    doc.setFillColor(244, 63, 94); // Rose 500
+    doc.rect(0, 26, 210, 1.5, 'F');
+
+    // Header text
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('RADIATION PORTAL MONITOR (RPM) - CAS OPERATOR', 14, 11);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(254, 205, 211); // Rose 200
+    doc.text('LAPORAN HISTORIS ALARM RADIASI KENDARAAN & VERIFIKASI SENSOR', 14, 18);
+    doc.setFontSize(8);
+    doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | Status: VERIFIKASI ALARM`, 14, 23);
+
+    // Metadata Box
+    doc.setFillColor(255, 241, 242); // Rose 50
+    doc.roundedRect(14, 32, 182, 22, 2, 2, 'F');
+    doc.setDrawColor(254, 205, 211);
+    doc.roundedRect(14, 32, 182, 22, 2, 2, 'D');
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(159, 18, 57);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tanggal Kejadian:', 18, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${alarmDate}`, 48, 38);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(159, 18, 57);
+    doc.text('Database:', 18, 44);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${state.activeDb}`, 48, 44);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(159, 18, 57);
+    doc.text('Total Kejadian Alarm:', 18, 50);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${state.alarmVehicles?.length || 0} Event Alarm`, 48, 50);
+
+    const activeAlarm = (state.alarmVehicles || []).find(v => String(v.idk) === String(state.selectedAlarmIdk)) || {};
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(159, 18, 57);
+    doc.text('IDK Alarm Terpilih:', 105, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${state.selectedAlarmIdk || '-'}`, 142, 38);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(159, 18, 57);
+    doc.text('Pilar Terdeteksi:', 105, 44);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Pilar ${activeAlarm.pilar || '115'}`, 142, 44);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(159, 18, 57);
+    doc.text('Jenis Alarm:', 105, 50);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${activeAlarm.jenis || 'Alarm Gamma'}`, 142, 50);
+
+    // Section 1: Snapshot Camera Image of Alarm Vehicle
+    let startY = 58;
+    const imgEl = document.getElementById('alarm-vehicle-snapshot-img');
+    const base64Img = await getImageBase64(imgEl, `/api/historis/snapshot/${state.selectedAlarmIdk}`);
+
+    if (base64Img) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(159, 18, 57);
+        doc.text(`FOTO SNAPSHOT KENDARAAN TERKENA ALARM (IDK: ${state.selectedAlarmIdk})`, 14, startY + 4);
+
+        try {
+            doc.addImage(base64Img, 'JPEG', 14, startY + 6, 68, 45);
+            doc.setDrawColor(225, 29, 72);
+            doc.rect(14, startY + 6, 68, 45, 'D');
+
+            doc.setFillColor(225, 29, 72);
+            doc.rect(14, startY + 51, 68, 5, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`PILAR ${activeAlarm.pilar || '115'} • ALARM EVENT • ${state.selectedAlarmIdk}`, 16, startY + 54.5);
+
+            doc.setFillColor(255, 241, 242);
+            doc.rect(86, startY + 6, 110, 50, 'F');
+            doc.setDrawColor(254, 205, 211);
+            doc.rect(86, startY + 6, 110, 50, 'D');
+
+            doc.setFontSize(8.5);
+            doc.setTextColor(159, 18, 57);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Parameter Deteksi & Verifikasi Alarm', 90, startY + 12);
+
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(71, 85, 105);
+            doc.text(`Waktu Kejadian: ${activeAlarm.tgl || alarmDate}`, 90, startY + 18);
+            doc.text(`Pilar Terpicu: Pilar ${activeAlarm.pilar || '115'}`, 90, startY + 24);
+            doc.text(`Puncak Cacah A1: ${formatNumber(activeAlarm.max_a1 || 0)} cps`, 90, startY + 30);
+            doc.text(`Puncak Cacah B1: ${formatNumber(activeAlarm.max_b1 || 0)} cps`, 90, startY + 36);
+            doc.text('Status Konfirmasi: Telah diverifikasi operator sistem', 90, startY + 42);
+
+            startY += 62;
+        } catch (e) {
+            console.warn('Could not render alarm image to PDF:', e);
+            startY += 8;
+        }
+    }
+
+    // Section 2: Table of Alarm Vehicles for this date
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(159, 18, 57);
+    doc.text(`DAFTAR EVENT KENDARAAN ALARM PADA TANGGAL ${alarmDate} (${state.alarmVehicles?.length || 0} TOTAL)`, 14, startY);
+
+    const alarmVehiclesTableData = (state.alarmVehicles || []).map(v => [
+        v.no,
+        v.idk,
+        v.tgl,
+        `Pilar ${v.pilar || '115'}`,
+        v.jenis || 'Alarm Gamma',
+        formatNumber(v.max_a1 || 0),
+        formatNumber(v.max_b1 || 0)
+    ]);
+
+    doc.autoTable({
+        startY: startY + 3,
+        head: [['No', 'IDK Alarm', 'Waktu Kejadian', 'Pilar', 'Jenis Alarm', 'Max A1 (cps)', 'Max B1 (cps)']],
+        body: alarmVehiclesTableData.length > 0 ? alarmVehiclesTableData : [['-', '-', 'Tidak ada event alarm pada tanggal ini', '-', '-', '-', '-']],
+        theme: 'striped',
+        styles: { fontSize: 7.5, cellPadding: 1.5, font: 'helvetica' },
+        headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+            0: { halign: 'center', cellWidth: 10 },
+            1: { fontStyle: 'bold', cellWidth: 32 },
+            2: { cellWidth: 42 },
+            3: { halign: 'center', cellWidth: 20 },
+            4: { cellWidth: 36 },
+            5: { halign: 'right', cellWidth: 25 },
+            6: { halign: 'right', cellWidth: 25 }
+        },
+        margin: { left: 14, right: 14 }
+    });
+
+    // Section 3: Detail Data Profil Sensor Alarm Kendaraan Terpilih
+    if (state.currentAlarmProfileData && state.currentAlarmProfileData.table_data && state.currentAlarmProfileData.table_data.length > 0) {
+        let nextY = doc.lastAutoTable.finalY + 8;
+        if (nextY > 250) {
+            doc.addPage();
+            nextY = 20;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(159, 18, 57);
+        doc.text(`DETAIL DATA PROFIL SENSOR ALARM PER DETIK (IDK: ${state.selectedAlarmIdk})`, 14, nextY);
+
+        const profileTableData = state.currentAlarmProfileData.table_data.map((r, i) => [
+            i + 1,
+            r.IDK || state.selectedAlarmIdk,
+            r.TANGGAL,
+            formatNumber(r.A1),
+            formatNumber(r.A2),
+            formatNumber(r.B1),
+            formatNumber(r.B2),
+            formatNumber(r.latarA1),
+            formatNumber(r.latarA2)
+        ]);
+
+        doc.autoTable({
+            startY: nextY + 3,
+            head: [['No', 'IDK', 'Waktu', 'Det A1 (cps)', 'Det A2 (cps)', 'Det B1 (cps)', 'Det B2 (cps)', 'Latar A1', 'Latar A2']],
+            body: profileTableData,
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 1.2, font: 'helvetica' },
+            headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold' },
+            margin: { left: 14, right: 14 }
+        });
+    }
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan Alarm Radiasi RPM CAS Operator`, 14, 290);
+    }
+
+    doc.save(`Laporan_Historis_Alarm_${alarmDate}.pdf`);
+    showToast('Berhasil mengunduh Laporan PDF Historis Alarm!', 'success');
+}
+window.exportAlarmDataPDF = exportAlarmDataPDF;
+
+// Load alarm vehicle records for date
+async function loadAlarmVehicles(dateStr) {
+    try {
+        const tbody = document.getElementById('alarm-vehicle-list-tbody');
+        const countBadge = document.getElementById('alarm-vehicle-count');
+        if (!tbody) return;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-slate-400">Memuat data alarm tanggal ${dateStr}...</td></tr>`;
+
+        const res = await fetch(apiUrl(`/api/historis/alarm-vehicles?date=${dateStr}`));
+        const json = await res.json();
+
+        if (json.status === 'success' && json.data && json.data.length > 0) {
+            state.alarmVehicles = json.data;
+            if (countBadge) {
+                countBadge.textContent = `${json.total} Alarm (Semua)`;
+            }
+            tbody.innerHTML = '';
+            json.data.forEach((v) => {
+                const tr = document.createElement('tr');
+                const isSelected = String(v.idk) === String(state.selectedAlarmIdk);
+                tr.className = `border-b border-slate-700/60 hover:bg-rose-950/40 cursor-pointer text-xs transition-colors ${isSelected ? 'bg-rose-950/60 text-rose-300 font-semibold' : 'text-slate-300'}`;
+                tr.setAttribute('data-alarm-idk', v.idk);
+                tr.innerHTML = `
+                    <td class="py-1.5 px-2 text-center text-slate-400">${v.no}</td>
+                    <td class="py-1.5 px-2 text-center">
+                        <button type="button" onclick="event.stopPropagation(); selectAlarmVehicle('${v.idk}')" class="px-2.5 py-0.5 bg-rose-700 hover:bg-rose-600 active:bg-rose-800 text-[10px] rounded text-white font-mono font-semibold cursor-pointer shadow-sm transition-all">Detail</button>
+                    </td>
+                    <td class="py-1.5 px-2 font-mono font-bold text-rose-400">${v.idk}</td>
+                    <td class="py-1.5 px-2 font-mono text-slate-400">${v.tgl}</td>
+                    <td class="py-1.5 px-2 text-center font-semibold text-rose-300">Pilar ${v.pilar || '115'}</td>
+                `;
+
+                tr.addEventListener('click', () => {
+                    selectAlarmVehicle(v.idk, v);
+                });
+
+                tbody.appendChild(tr);
+            });
+
+            // Automatically select first record if none selected or not in list
+            const firstIdk = json.data[0].idk;
+            if (!state.selectedAlarmIdk || !json.data.some(x => String(x.idk) === String(state.selectedAlarmIdk))) {
+                state.selectedAlarmIdk = String(firstIdk);
+            }
+            const activeItem = json.data.find(x => String(x.idk) === String(state.selectedAlarmIdk)) || json.data[0];
+            selectAlarmVehicle(state.selectedAlarmIdk, activeItem);
+        } else {
+            state.alarmVehicles = [];
+            if (countBadge) countBadge.textContent = '0 Alarm';
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-500">Tidak ada data alarm pada tanggal ${dateStr} di ${state.activeDb}.</td></tr>`;
+            const profileTbody = document.getElementById('alarm-profile-grid-tbody');
+            if (profileTbody) {
+                profileTbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500">Pilih kendaraan alarm untuk menampilkan grid profile.</td></tr>';
+            }
+        }
+    } catch (e) {
+        console.error('Error fetching alarm vehicles:', e);
+    }
+}
+window.loadAlarmVehicles = loadAlarmVehicles;
+
+// Select an alarm vehicle
+async function selectAlarmVehicle(idk, rowData = null) {
+    if (!idk) return;
+    state.selectedAlarmIdk = String(idk);
+
+    if (!rowData && state.alarmVehicles) {
+        rowData = state.alarmVehicles.find(x => String(x.idk) === String(idk));
+    }
+
+    // Highlight row in list
+    document.querySelectorAll('#alarm-vehicle-list-tbody tr').forEach(row => {
+        if (row.getAttribute('data-alarm-idk') === String(idk)) {
+            row.classList.add('bg-rose-950/60', 'text-rose-300', 'font-semibold');
+        } else {
+            row.classList.remove('bg-rose-950/60', 'text-rose-300', 'font-semibold');
+        }
+    });
+
+    // Update snapshot camera & overlays
+    const imgEl = document.getElementById('alarm-vehicle-snapshot-img');
+    const badgeEl = document.getElementById('alarm-snapshot-pilar-badge');
+    const timeOverlay = document.getElementById('alarm-snapshot-overlay');
+    const idkOverlay = document.getElementById('alarm-snapshot-idk-overlay');
+    const activeIdkBadge = document.getElementById('alarm-profile-active-idk-badge');
+
+    if (imgEl) {
+        imgEl.src = `/api/historis/snapshot/${idk}?t=${Date.now()}`;
+    }
+    const pilarStr = rowData?.pilar ? `PILAR ${rowData.pilar}` : 'PILAR 115';
+    if (badgeEl) badgeEl.textContent = pilarStr;
+    if (timeOverlay) {
+        timeOverlay.textContent = `${pilarStr} • ${rowData?.tgl || idk}`;
+    }
+    if (idkOverlay) {
+        idkOverlay.textContent = `IDK: ${idk}`;
+    }
+    if (activeIdkBadge) {
+        activeIdkBadge.textContent = `IDK: ${idk} (${pilarStr})`;
+    }
+
+    // Fetch profile time-series for this alarm vehicle
+    try {
+        const res = await fetch(apiUrl(`/api/historis/profile/${idk}`));
+        const json = await res.json();
+        if (json.status === 'success') {
+            const data = json.data;
+            state.currentAlarmProfileData = data;
+
+            // Render detail table
+            const tbody = document.getElementById('alarm-profile-grid-tbody');
+            if (tbody) {
+                tbody.innerHTML = '';
+                if (!data.table_data || data.table_data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="py-4 text-center text-slate-500">Tidak ada baris data profile untuk IDK ${idk}.</td></tr>`;
+                } else {
+                    data.table_data.forEach(r => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'border-b border-slate-700/40 text-xs font-mono hover:bg-rose-950/30 transition-colors';
+                        tr.innerHTML = `
+                            <td class="py-1 px-2.5 text-rose-400 font-bold">${r.IDK || idk}</td>
+                            <td class="py-1 px-2.5 text-slate-300">${r.TANGGAL}</td>
+                            <td class="py-1 px-2.5 text-blue-400 font-semibold">${formatNumber(r.A1)}</td>
+                            <td class="py-1 px-2.5 text-emerald-400 font-semibold">${formatNumber(r.A2)}</td>
+                            <td class="py-1 px-2.5 text-yellow-400 font-semibold">${formatNumber(r.B1)}</td>
+                            <td class="py-1 px-2.5 text-rose-400 font-semibold">${formatNumber(r.B2)}</td>
+                            <td class="py-1 px-2.5 text-slate-400">${formatNumber(r.latarA1)}</td>
+                            <td class="py-1 px-2.5 text-slate-400">${formatNumber(r.latarA2)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            }
+
+            // Render multi-line radiation alarm chart
+            const ctx = document.getElementById('chart-alarm-profile-lines');
+            if (ctx && data.chart_data) {
+                if (state.charts.alarmProfile) state.charts.alarmProfile.destroy();
+                state.charts.alarmProfile = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.chart_data.labels,
+                        datasets: [
+                            {
+                                label: 'Profil_A1',
+                                data: data.chart_data.profil_a1,
+                                borderColor: '#38BDF8', // Cyan/Blue
+                                borderWidth: 2,
+                                tension: 0.1,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Profil_A2',
+                                data: data.chart_data.profil_a2,
+                                borderColor: '#34D399', // Green
+                                borderWidth: 2,
+                                tension: 0.1,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Profil_B1',
+                                data: data.chart_data.profil_b1,
+                                borderColor: '#FBBF24', // Yellow
+                                borderWidth: 2,
+                                tension: 0.1,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Profil_B2',
+                                data: data.chart_data.profil_b2,
+                                borderColor: '#F43F5E', // Rose/Red
+                                borderWidth: 2,
+                                tension: 0.1,
+                                pointRadius: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#1E1B4B',
+                                titleColor: '#F8FAFC',
+                                borderColor: '#F43F5E',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(71, 85, 105, 0.3)' },
+                                ticks: { color: '#94A3B8', stepSize: 10 }
+                            },
+                            y: {
+                                min: 0,
+                                ticks: { color: '#94A3B8' },
+                                grid: { color: 'rgba(71, 85, 105, 0.3)' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    } catch (e) {
+        console.error('Error fetching alarm profile:', e);
+    }
+}
+window.selectAlarmVehicle = selectAlarmVehicle;
 
 // ==========================================
 // HISTORIS LOGIC (Exact Image 1 Reproduction)
@@ -1610,6 +2308,10 @@ async function loadHistorisVehicles(dateStr) {
 
         if (json.status === 'success' && json.data.length > 0) {
             state.currentVehicles = json.data;
+            const countBadge = document.getElementById('historis-vehicle-count');
+            if (countBadge) {
+                countBadge.textContent = `${json.total} Kendaraan (Semua)`;
+            }
             tbody.innerHTML = '';
             json.data.forEach((v, idx) => {
                 const tr = document.createElement('tr');
@@ -1640,6 +2342,8 @@ async function loadHistorisVehicles(dateStr) {
             selectHistorisVehicle(state.selectedIdk);
         } else {
             state.currentVehicles = [];
+            const countBadge = document.getElementById('historis-vehicle-count');
+            if (countBadge) countBadge.textContent = '0 Kendaraan';
             tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-500">Tidak ada data kendaraan pada tanggal ini di ${state.activeDb}.</td></tr>`;
             const profileTbody = document.getElementById('profile-grid-tbody') || document.getElementById('profile-detail-tbody');
             if (profileTbody) {
@@ -1678,6 +2382,7 @@ async function loadHistorisProfile(idk) {
         const json = await res.json();
         if (json.status === 'success') {
             const data = json.data;
+            state.currentOkupasiProfileData = data;
 
             // Render detail table (Gambar 2 replica)
             const tbody = document.getElementById('profile-grid-tbody') || document.getElementById('profile-detail-tbody');

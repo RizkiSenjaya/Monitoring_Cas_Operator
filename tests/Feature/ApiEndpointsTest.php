@@ -67,4 +67,14 @@ class ApiEndpointsTest extends TestCase
                      'data',
                  ]);
     }
+
+    public function test_historis_alarm_vehicles(): void
+    {
+        $response = $this->getJson('/api/historis/alarm-vehicles?date=2025-11-14');
+        $response->assertStatus(200)
+                 ->assertJsonStructure([
+                     'status',
+                     'data',
+                 ]);
+    }
 }
