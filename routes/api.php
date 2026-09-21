@@ -28,6 +28,8 @@ Route::prefix('historis')->group(function () {
     Route::get('/alarm-vehicles', [HistorisController::class, 'alarmVehicles']);
     Route::get('/profile/{idk}', [HistorisController::class, 'profile']);
     Route::get('/snapshot/{idk}', [HistorisController::class, 'snapshot']);
+    Route::get('/thumbnail/{idk}', [HistorisController::class, 'thumbnail']);
+    Route::post('/batch-thumbnails', [HistorisController::class, 'batchThumbnails']);
 });
 
 // System endpoints

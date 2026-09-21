@@ -29,6 +29,8 @@ Route::prefix('api')->group(function () {
     Route::get('/historis/alarm-vehicles', [HistorisController::class, 'alarmVehicles']);
     Route::get('/historis/profile/{idk}', [HistorisController::class, 'profile']);
     Route::get('/historis/snapshot/{idk}', [HistorisController::class, 'snapshot']);
+    Route::get('/historis/thumbnail/{idk}', [HistorisController::class, 'thumbnail']);
+    Route::match(['get', 'post'], '/historis/batch-thumbnails', [HistorisController::class, 'batchThumbnails']);
 
     Route::get('/system/status', [SystemController::class, 'status']);
     Route::post('/system/select-db', [SystemController::class, 'selectDb']);

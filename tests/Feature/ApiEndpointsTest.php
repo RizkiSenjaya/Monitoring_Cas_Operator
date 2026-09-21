@@ -77,4 +77,24 @@ class ApiEndpointsTest extends TestCase
                      'data',
                  ]);
     }
+
+    public function test_historis_thumbnail(): void
+    {
+        $response = $this->get('/api/historis/thumbnail/251114095622');
+        $response->assertStatus(200);
+    }
+
+    public function test_historis_batch_thumbnails(): void
+    {
+        $response = $this->postJson('/api/historis/batch-thumbnails', [
+            'idks' => ['251114095622']
+        ]);
+        $response->assertStatus(200)
+                 ->assertJsonStructure([
+                     'status',
+                     'count',
+                     'thumbnails'
+                 ]);
+    }
 }
+

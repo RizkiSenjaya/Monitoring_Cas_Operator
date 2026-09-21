@@ -28,13 +28,15 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get 50 recent alarms
+     * Get recent or all alarms
      */
-    public function alarms(): JsonResponse
+    public function alarms(Request $request): JsonResponse
     {
-        $alarms = $this->rpmService->getRecentAlarms(50);
+        $limit = (int)$request->query('limit', 0);
+        $alarms = $this->rpmService->getRecentAlarms($limit);
         return response()->json([
             'status' => 'success',
+            'total' => count($alarms),
             'data' => $alarms
         ]);
     }

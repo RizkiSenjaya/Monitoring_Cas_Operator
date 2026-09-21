@@ -108,4 +108,55 @@ SVG;
             'Cache-Control' => 'no-cache',
         ]);
     }
+
+    /**
+     * Stream a cached low-resolution thumbnail (Camera 01)
+     */
+    public function thumbnail(string $idk): Response
+    {
+        $thumbPath = $this->rpmService->getThumbnailPath($idk, 120, 80);
+
+        if ($thumbPath && file_exists($thumbPath)) {
+            return response()->file($thumbPath, [
+                'Content-Type' => 'image/jpeg',
+                'Cache-Control' => 'public, max-age=604800',
+            ]);
+        }
+
+        // Fallback: small SVG
+        $svg = <<<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" fill="none">
+  <rect width="120" height="80" fill="#0F172A"/>
+  <rect x="2" y="2" width="116" height="76" rx="4" stroke="#334155" stroke-width="1"/>
+  <circle cx="60" cy="35" r="14" fill="#1E293B" stroke="#0284C7" stroke-width="1.5"/>
+  <path d="M54 35H66M60 29V41" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="60" y="62" fill="#94A3B8" font-family="sans-serif" font-size="8" font-weight="600" text-anchor="middle">NO PHOTO</text>
+</svg>
+SVG;
+
+        return response($svg, 200, [
+            'Content-Type' => 'image/svg+xml',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
+    /**
+     * Return batch thumbnails as Base64 Data URLs for high-speed PDF rendering
+     */
+    public function batchThumbnails(Request $request): JsonResponse
+    {
+        $idks = $request->input('idks', []);
+        if (!is_array($idks)) {
+            $idks = [];
+        }
+
+        $thumbnails = $this->rpmService->getBatchThumbnails($idks, 120, 80);
+
+        return response()->json([
+            'status' => 'success',
+            'count' => count($thumbnails),
+            'thumbnails' => $thumbnails
+        ]);
+    }
 }
+

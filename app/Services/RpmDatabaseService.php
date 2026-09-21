@@ -245,16 +245,22 @@ class RpmDatabaseService
     }
 
     /**
-     * Get recent 20 alarms for the dashboard and alarm table
+     * Get recent or all alarms for the dashboard and alarm table
      */
-    public function getRecentAlarms(int $limit = 20): array
+    public function getRecentAlarms(int $limit = 0): array
     {
         $cacheKey = 'rpm_recent_alarms_' . $this->activeDb . '_' . $limit;
         return Cache::remember($cacheKey, 30, function () use ($limit) {
             try {
                 $pdo = $this->getConnection();
-                $stmt = $pdo->prepare("SELECT * FROM tblAlarm ORDER BY rowid DESC LIMIT :limit");
-                $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $sql = "SELECT * FROM tblAlarm ORDER BY rowid DESC";
+                if ($limit > 0) {
+                    $sql .= " LIMIT :limit";
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                } else {
+                    $stmt = $pdo->prepare($sql);
+                }
                 $stmt->execute();
                 $rows = $stmt->fetchAll();
 
@@ -1173,6 +1179,86 @@ class RpmDatabaseService
 
         return null;
     }
+
+    /**
+     * Get or generate a cached thumbnail for a vehicle snapshot
+     */
+    public function getThumbnailPath(string $idk, int $width = 120, int $height = 80): ?string
+    {
+        $idkClean = preg_replace('/[^0-9a-zA-Z_-]/', '', $idk);
+        if (empty($idkClean)) {
+            return null;
+        }
+
+        $thumbDir = storage_path('app/thumbnails');
+        if (!is_dir($thumbDir)) {
+            @mkdir($thumbDir, 0777, true);
+        }
+
+        $thumbPath = $thumbDir . DIRECTORY_SEPARATOR . "{$idkClean}_{$width}x{$height}.jpg";
+        if (file_exists($thumbPath) && filesize($thumbPath) > 0) {
+            return $thumbPath;
+        }
+
+        $origPath = $this->resolveSnapshotPath($idk);
+        if (!$origPath || !file_exists($origPath)) {
+            return null;
+        }
+
+        try {
+            $raw = @file_get_contents($origPath);
+            if (!$raw) return null;
+
+            $im = @imagecreatefromstring($raw);
+            if (!$im) return null;
+
+            $origW = imagesx($im);
+            $origH = imagesy($im);
+            if ($origW <= 0 || $origH <= 0) {
+                @imagedestroy($im);
+                return null;
+            }
+
+            $thumb = imagescale($im, $width, $height);
+            @imagedestroy($im);
+
+            if ($thumb) {
+                imagejpeg($thumb, $thumbPath, 65);
+                @imagedestroy($thumb);
+                return $thumbPath;
+            }
+        } catch (\Throwable $e) {
+            \Log::warning("Failed to generate thumbnail for IDK {$idk}: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Retrieve batch thumbnails as Base64 Data URLs
+     * Returns: ['idk' => 'data:image/jpeg;base64,...']
+     */
+    public function getBatchThumbnails(array $idks, int $width = 120, int $height = 80): array
+    {
+        $results = [];
+        $idks = array_slice($idks, 0, 1000);
+
+        foreach ($idks as $idk) {
+            $idk = (string)$idk;
+            $path = $this->getThumbnailPath($idk, $width, $height);
+            if ($path && file_exists($path)) {
+                $content = @file_get_contents($path);
+                if ($content) {
+                    $results[$idk] = 'data:image/jpeg;base64,' . base64_encode($content);
+                    continue;
+                }
+            }
+            $results[$idk] = null;
+        }
+
+        return $results;
+    }
+
 
     /**
      * Get list of dates that have recorded data for the active database

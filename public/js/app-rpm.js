@@ -1352,14 +1352,29 @@ function initAlarmCharts(selectedItem) {
     });
 }
 
-// Render Alarm Table in Alarm Tab (Strictly 20 items, robust string casting for 115, 116, Belum ACK)
+// Render Alarm Table in Alarm Tab (All records, fast string builder + event delegation)
 function renderAlarmTable() {
     const tbody = document.getElementById('table-alarm-tbody');
     if (!tbody) return;
 
-    // Strictly limit to 20 data items as requested
-    let items = (state.allAlarms || []).slice(0, 20);
-    
+    const allItems = state.allAlarms || [];
+
+    // Calculate dynamic counts for filter buttons
+    const count115 = allItems.filter(a => String(a.pilar || '').includes('115')).length;
+    const count116 = allItems.filter(a => String(a.pilar || '').includes('116')).length;
+    const countBelum = allItems.filter(a => String(a.ack || '').toLowerCase().includes('belum') || a.ack === 0 || a.ack === '0').length;
+
+    const btnAll = document.getElementById('alarm-filter-btn-all');
+    if (btnAll) btnAll.textContent = `Semua (${allItems.length.toLocaleString('id-ID')})`;
+    const btn115 = document.getElementById('alarm-filter-btn-115');
+    if (btn115) btn115.textContent = `Pilar 115 (${count115.toLocaleString('id-ID')})`;
+    const btn116 = document.getElementById('alarm-filter-btn-116');
+    if (btn116) btn116.textContent = `Pilar 116 (${count116.toLocaleString('id-ID')})`;
+    const btnBelum = document.getElementById('alarm-filter-btn-belum');
+    if (btnBelum) btnBelum.textContent = `Belum ACK (${countBelum.toLocaleString('id-ID')})`;
+
+    // Filter items based on activeAlarmFilter
+    let items = allItems;
     if (state.activeAlarmFilter === '115') {
         items = items.filter(a => String(a.pilar || '').includes('115'));
     } else if (state.activeAlarmFilter === '116') {
@@ -1368,69 +1383,73 @@ function renderAlarmTable() {
         items = items.filter(a => String(a.ack || '').toLowerCase().includes('belum') || a.ack === 0 || a.ack === '0');
     }
 
+    const totalBadge = document.getElementById('alarm-table-total-badge');
+    if (totalBadge) {
+        totalBadge.textContent = `${items.length.toLocaleString('id-ID')} Event`;
+    }
+
     if (items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-slate-500">Tidak ada event alarm yang cocok dengan filter.</td></tr>';
         return;
     }
 
-    tbody.innerHTML = '';
-    items.forEach((item, index) => {
-        const tr = document.createElement('tr');
-        tr.id = `alarm-row-${item.idk}`;
-        tr.className = 'border-b border-slate-800/80 hover:bg-slate-800/40 text-xs text-slate-300 transition-colors cursor-pointer';
-        
+    // High performance HTML string builder for thousands of rows
+    const rowsHtml = items.map((item, index) => {
         const isUnack = String(item.ack || '').toLowerCase().includes('belum') || item.ack === 0 || item.ack === '0';
-        
         const a1Val = item.raw_a1 ? `${formatNumber(item.raw_a1)}` : (item.a1 || '-');
         const a2Val = item.raw_a2 ? `${formatNumber(item.raw_a2)}` : (item.a2 || '-');
         const b1Val = item.raw_b1 ? `${formatNumber(item.raw_b1)}` : (item.b1 || '-');
         const b2Val = item.raw_b2 ? `${formatNumber(item.raw_b2)}` : (item.b2 || '-');
 
-        tr.innerHTML = `
-            <td class="py-2.5 px-3 text-slate-500 font-mono">${index + 1}</td>
-            <td class="py-2.5 px-3 font-mono text-cyan-300 font-semibold">${item.idk}</td>
-            <td class="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">${item.waktu}</td>
-            <td class="py-2.5 px-3 font-semibold text-cyan-400 whitespace-nowrap">Pilar ${item.pilar}</td>
-            <td class="py-2.5 px-3 text-rose-300 font-medium">${item.jenis}</td>
-            <td class="py-2.5 px-3 whitespace-nowrap font-mono">
-                <span class="${item.a1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${a1Val}</span> / 
-                <span class="${item.a2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${a2Val}</span>
-            </td>
-            <td class="py-2.5 px-3 whitespace-nowrap font-mono">
-                <span class="${item.b1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${b1Val}</span> / 
-                <span class="${item.b2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${b2Val}</span>
-            </td>
-            <td class="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">${item.latar || '-'}</td>
-            <td class="py-2.5 px-3 whitespace-nowrap">
-                <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isUnack ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
-                    ${isUnack ? 'Belum ACK' : 'Sudah ACK'}
-                </span>
-            </td>
-            <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                <button type="button" class="btn-lihat-foto px-2.5 py-1 bg-cyan-600/80 hover:bg-cyan-500 text-white rounded text-[11px] font-medium shadow-sm transition-all flex items-center gap-1 mx-auto">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    Lihat Foto
-                </button>
-            </td>
+        return `
+            <tr id="alarm-row-${item.idk}" data-alarm-idk="${item.idk}" class="border-b border-slate-800/80 hover:bg-slate-800/40 text-xs text-slate-300 transition-colors cursor-pointer">
+                <td class="py-2.5 px-3 text-slate-500 font-mono">${index + 1}</td>
+                <td class="py-2.5 px-3 font-mono text-cyan-300 font-semibold">${item.idk}</td>
+                <td class="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">${item.waktu}</td>
+                <td class="py-2.5 px-3 font-semibold text-cyan-400 whitespace-nowrap">Pilar ${item.pilar}</td>
+                <td class="py-2.5 px-3 text-rose-300 font-medium">${item.jenis}</td>
+                <td class="py-2.5 px-3 whitespace-nowrap font-mono">
+                    <span class="${item.a1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${a1Val}</span> / 
+                    <span class="${item.a2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${a2Val}</span>
+                </td>
+                <td class="py-2.5 px-3 whitespace-nowrap font-mono">
+                    <span class="${item.b1 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${b1Val}</span> / 
+                    <span class="${item.b2 === 'ON' ? 'text-rose-400 font-bold' : 'text-slate-300'}">${b2Val}</span>
+                </td>
+                <td class="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">${item.latar || '-'}</td>
+                <td class="py-2.5 px-3 whitespace-nowrap">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isUnack ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
+                        ${isUnack ? 'Belum ACK' : 'Sudah ACK'}
+                    </span>
+                </td>
+                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                    <button type="button" data-alarm-action="view" class="btn-lihat-foto px-2.5 py-1 bg-cyan-600/80 hover:bg-cyan-500 text-white rounded text-[11px] font-medium shadow-sm transition-all flex items-center gap-1 mx-auto">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        Lihat Foto
+                    </button>
+                </td>
+            </tr>
         `;
+    }).join('');
 
-        tr.addEventListener('click', () => {
-            selectAlarmRecord(item);
-        });
+    tbody.innerHTML = rowsHtml;
 
-        const btnFoto = tr.querySelector('.btn-lihat-foto');
-        if (btnFoto) {
-            btnFoto.addEventListener('click', (e) => {
-                e.stopPropagation();
+    // Single delegated click listener on tbody for ultra performance
+    if (!tbody.hasAttribute('data-delegated')) {
+        tbody.setAttribute('data-delegated', 'true');
+        tbody.addEventListener('click', (e) => {
+            const tr = e.target.closest('tr[data-alarm-idk]');
+            if (!tr) return;
+            const idk = tr.getAttribute('data-alarm-idk');
+            const item = (state.allAlarms || []).find(a => String(a.idk) === String(idk));
+            if (item) {
                 selectAlarmRecord(item);
-            });
-        }
+            }
+        });
+    }
 
-        tbody.appendChild(tr);
-    });
-
-    // Auto-select first alarm for snapshot viewer & charts
-    if (items.length > 0) {
+    // Auto-select first alarm for snapshot viewer & charts if none currently selected
+    if (items.length > 0 && !state.selectedAlarmIdk) {
         selectAlarmRecord(items[0]);
     }
 }
@@ -1441,7 +1460,7 @@ function loadAlarmPage() {
     loadRecentAlarms(true);
 }
 
-// Fetch recent alarms (strictly 20 data)
+// Fetch recent alarms (all data from tblAlarm)
 async function loadRecentAlarms(force = false) {
     try {
         const tbody = document.getElementById('table-alarm-tbody');
@@ -1449,17 +1468,17 @@ async function loadRecentAlarms(force = false) {
             tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-slate-500">Memuat event alarm...</td></tr>';
         }
 
-        const res = await fetch(apiUrl('/api/dashboard/alarms'));
+        const res = await fetch(apiUrl('/api/dashboard/alarms?limit=0'));
         const json = await res.json();
         if (json.status === 'success') {
             handleServerConnectionSuccess();
-            state.allAlarms = (json.data || []).slice(0, 20); // 20 data saja yang ditampilkan
+            state.allAlarms = json.data || []; // All data completely loaded!
             renderAlarmTable();
 
             // Sync total counter and quick jump button with active database
             const totalAlarmEl = document.getElementById('alarm-total-counter');
             if (totalAlarmEl) {
-                totalAlarmEl.textContent = (state.activeDb === 'rpm.db') ? '2.877' : ((state.activeDb === 'rpm_1.db') ? '4.230' : '0');
+                totalAlarmEl.textContent = state.allAlarms.length.toLocaleString('id-ID');
             }
             const quickJump = document.getElementById('alarm-cal-quick-select');
             if (quickJump) {
@@ -1479,9 +1498,9 @@ async function loadRecentAlarms(force = false) {
     }
 }
 
-// Export 20 alarm records to CSV
+// Export all alarm records to CSV
 function exportAlarmDataCSV() {
-    const items = (state.allAlarms || []).slice(0, 20);
+    const items = state.allAlarms || [];
     if (!items.length) {
         showToast('Tidak ada data alarm untuk diekspor', 'info');
         return;
@@ -1494,13 +1513,14 @@ function exportAlarmDataCSV() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `alarm_rpm_${state.activeDb}_20data.csv`);
+    link.setAttribute('download', `alarm_rpm_${state.activeDb}_semua_${items.length}_data.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Berhasil mengekspor 20 data alarm ke CSV', 'success');
+    showToast(`Berhasil mengekspor seluruh (${items.length.toLocaleString('id-ID')}) data alarm ke CSV`, 'success');
 }
 window.exportAlarmDataCSV = exportAlarmDataCSV;
+
 
 // Export occupation records to CSV
 function exportOkupasiDataCSV() {
@@ -1561,6 +1581,44 @@ async function getImageBase64(imgElement, fallbackUrl = '') {
                 resolve(null);
             });
     });
+}
+
+// Helper to fetch batch thumbnails as base64 Data URLs for high-speed PDF rendering
+async function loadSnapshotThumbnails(idks, onProgress) {
+    const thumbMap = new Map();
+    if (!idks || !idks.length) return thumbMap;
+
+    const uniqueIdks = Array.from(new Set(idks.filter(Boolean)));
+    const batchSize = 100;
+    const totalBatches = Math.ceil(uniqueIdks.length / batchSize);
+
+    for (let b = 0; b < totalBatches; b++) {
+        const chunk = uniqueIdks.slice(b * batchSize, (b + 1) * batchSize);
+        if (onProgress) {
+            onProgress(Math.min((b + 1) * batchSize, uniqueIdks.length), uniqueIdks.length);
+        }
+
+        try {
+            const res = await fetch('/api/historis/batch-thumbnails', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ idks: chunk })
+            });
+            const json = await res.json();
+            if (json.status === 'success' && json.thumbnails) {
+                Object.entries(json.thumbnails).forEach(([k, v]) => {
+                    if (v) thumbMap.set(k, v);
+                });
+            }
+        } catch (err) {
+            console.warn('Batch thumbnail fetch error for chunk, continuing:', err);
+        }
+    }
+
+    return thumbMap;
 }
 
 // Export occupation records to PDF (jsPDF + autoTable)
@@ -1685,14 +1743,22 @@ async function exportOkupasiDataPDF() {
         }
     }
 
-    // Section 2: Table of Vehicles for this date
+    // Section 2: Table of Vehicles for this date with photo on EVERY row
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
     doc.text(`DAFTAR SELURUH KENDARAAN PADA TANGGAL ${state.selectedDate} (${state.currentVehicles?.length || 0} TOTAL)`, 14, startY);
 
+    // Fetch batch thumbnails for all vehicles
+    showToast(`Memuat foto seluruh kendaraan (0/${state.currentVehicles?.length || 0})...`, 'info');
+    const vehicleIdks = (state.currentVehicles || []).map(v => v.idk);
+    const vehicleThumbMap = await loadSnapshotThumbnails(vehicleIdks, (done, total) => {
+        showToast(`Memuat foto seluruh kendaraan (${done}/${total})...`, 'info');
+    });
+
     const vehicleTableData = (state.currentVehicles || []).map(v => [
         v.no,
+        '', // Cell for vehicle photo thumbnail
         v.idk,
         v.tgl,
         v.points || '-',
@@ -1702,21 +1768,38 @@ async function exportOkupasiDataPDF() {
 
     doc.autoTable({
         startY: startY + 3,
-        head: [['No', 'IDK Kendaraan', 'Tanggal / Jam', 'Points', 'Max A1 (cps)', 'Max B1 (cps)']],
-        body: vehicleTableData.length > 0 ? vehicleTableData : [['-', '-', 'Tidak ada data kendaraan', '-', '-', '-']],
+        head: [['No', 'Foto Snapshot', 'IDK Kendaraan', 'Tanggal / Jam', 'Points', 'Max A1 (cps)', 'Max B1 (cps)']],
+        body: vehicleTableData.length > 0 ? vehicleTableData : [['-', '-', '-', 'Tidak ada data kendaraan', '-', '-', '-']],
         theme: 'striped',
-        styles: { fontSize: 7.5, cellPadding: 1.5, font: 'helvetica' },
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 1.5, minCellHeight: 14, valign: 'middle', font: 'helvetica' },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
         columnStyles: {
-            0: { halign: 'center', cellWidth: 12 },
-            1: { fontStyle: 'bold', cellWidth: 35 },
-            2: { cellWidth: 50 },
-            3: { halign: 'center', cellWidth: 20 },
-            4: { halign: 'right', cellWidth: 32 },
-            5: { halign: 'right', cellWidth: 32 }
+            0: { halign: 'center', cellWidth: 10, valign: 'middle' },
+            1: { halign: 'center', cellWidth: 24, valign: 'middle' },
+            2: { fontStyle: 'bold', cellWidth: 32, valign: 'middle' },
+            3: { cellWidth: 44, valign: 'middle' },
+            4: { halign: 'center', cellWidth: 18, valign: 'middle' },
+            5: { halign: 'right', cellWidth: 27, valign: 'middle' },
+            6: { halign: 'right', cellWidth: 27, valign: 'middle' }
         },
-        margin: { left: 14, right: 14 }
+        margin: { left: 14, right: 14 },
+        didDrawCell: function (data) {
+            if (data.section === 'body' && data.column.index === 1) {
+                const rowIdk = data.row.raw[2];
+                const imgBase64 = vehicleThumbMap.get(String(rowIdk));
+                if (imgBase64) {
+                    try {
+                        doc.addImage(imgBase64, 'JPEG', data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5);
+                        doc.setDrawColor(203, 213, 225);
+                        doc.rect(data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5, 'D');
+                    } catch (err) {
+                        console.warn('PDF addImage error:', err);
+                    }
+                }
+            }
+        }
     });
+
 
     // Section 3: Detail Data Profil Sensor Kendaraan Terpilih
     if (state.currentOkupasiProfileData && state.currentOkupasiProfileData.table_data && state.currentOkupasiProfileData.table_data.length > 0) {
@@ -1899,14 +1982,22 @@ async function exportAlarmDataPDF() {
         }
     }
 
-    // Section 2: Table of Alarm Vehicles for this date
+    // Section 2: Table of Alarm Vehicles for this date with photo on EVERY row
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(159, 18, 57);
     doc.text(`DAFTAR EVENT KENDARAAN ALARM PADA TANGGAL ${alarmDate} (${state.alarmVehicles?.length || 0} TOTAL)`, 14, startY);
 
+    // Fetch batch thumbnails for all alarm vehicles
+    showToast(`Memuat foto kendaraan alarm (0/${state.alarmVehicles?.length || 0})...`, 'info');
+    const alarmIdks = (state.alarmVehicles || []).map(v => v.idk);
+    const alarmThumbMap = await loadSnapshotThumbnails(alarmIdks, (done, total) => {
+        showToast(`Memuat foto kendaraan alarm (${done}/${total})...`, 'info');
+    });
+
     const alarmVehiclesTableData = (state.alarmVehicles || []).map(v => [
         v.no,
+        '', // Cell for vehicle photo thumbnail
         v.idk,
         v.tgl,
         `Pilar ${v.pilar || '115'}`,
@@ -1917,22 +2008,39 @@ async function exportAlarmDataPDF() {
 
     doc.autoTable({
         startY: startY + 3,
-        head: [['No', 'IDK Alarm', 'Waktu Kejadian', 'Pilar', 'Jenis Alarm', 'Max A1 (cps)', 'Max B1 (cps)']],
-        body: alarmVehiclesTableData.length > 0 ? alarmVehiclesTableData : [['-', '-', 'Tidak ada event alarm pada tanggal ini', '-', '-', '-', '-']],
+        head: [['No', 'Foto Snapshot', 'IDK Alarm', 'Waktu Kejadian', 'Pilar', 'Jenis Alarm', 'Max A1 (cps)', 'Max B1 (cps)']],
+        body: alarmVehiclesTableData.length > 0 ? alarmVehiclesTableData : [['-', '-', '-', 'Tidak ada event alarm pada tanggal ini', '-', '-', '-', '-']],
         theme: 'striped',
-        styles: { fontSize: 7.5, cellPadding: 1.5, font: 'helvetica' },
-        headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 1.5, minCellHeight: 14, valign: 'middle', font: 'helvetica' },
+        headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
         columnStyles: {
-            0: { halign: 'center', cellWidth: 10 },
-            1: { fontStyle: 'bold', cellWidth: 32 },
-            2: { cellWidth: 42 },
-            3: { halign: 'center', cellWidth: 20 },
-            4: { cellWidth: 36 },
-            5: { halign: 'right', cellWidth: 25 },
-            6: { halign: 'right', cellWidth: 25 }
+            0: { halign: 'center', cellWidth: 10, valign: 'middle' },
+            1: { halign: 'center', cellWidth: 24, valign: 'middle' },
+            2: { fontStyle: 'bold', cellWidth: 28, valign: 'middle' },
+            3: { cellWidth: 36, valign: 'middle' },
+            4: { halign: 'center', cellWidth: 18, valign: 'middle' },
+            5: { cellWidth: 26, valign: 'middle' },
+            6: { halign: 'right', cellWidth: 20, valign: 'middle' },
+            7: { halign: 'right', cellWidth: 20, valign: 'middle' }
         },
-        margin: { left: 14, right: 14 }
+        margin: { left: 14, right: 14 },
+        didDrawCell: function (data) {
+            if (data.section === 'body' && data.column.index === 1) {
+                const rowIdk = data.row.raw[2];
+                const imgBase64 = alarmThumbMap.get(String(rowIdk));
+                if (imgBase64) {
+                    try {
+                        doc.addImage(imgBase64, 'JPEG', data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5);
+                        doc.setDrawColor(254, 205, 211);
+                        doc.rect(data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5, 'D');
+                    } catch (err) {
+                        console.warn('PDF addImage error:', err);
+                    }
+                }
+            }
+        }
     });
+
 
     // Section 3: Detail Data Profil Sensor Alarm Kendaraan Terpilih
     if (state.currentAlarmProfileData && state.currentAlarmProfileData.table_data && state.currentAlarmProfileData.table_data.length > 0) {

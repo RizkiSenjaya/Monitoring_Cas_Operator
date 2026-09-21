@@ -1045,37 +1045,38 @@
 
                 </div>
 
-                <!-- Bottom Section: Event Alarm Table (Strictly 20 Data Items - Gambar 2 Replica) -->
+                <!-- Bottom Section: Event Alarm Table (Secara Keseluruhan / Semua Data) -->
                 <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-5 shadow-lg">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
                         <div>
                             <div class="flex items-center gap-2">
                                 <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                <h3 class="text-sm font-bold text-white">Event Alarm Radiasi (20 Data Terakhir)</h3>
+                                <h3 class="text-sm font-bold text-white">Event Alarm Radiasi (Semua Data)</h3>
+                                <span id="alarm-table-total-badge" class="px-2 py-0.5 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded text-[10px] font-bold font-mono">0 Event</span>
                             </div>
-                            <p class="text-xs text-slate-400 mt-0.5">Daftar rekaman event alarm pilar portal (terbatas 20 event terbaru)</p>
+                            <p class="text-xs text-slate-400 mt-0.5">Daftar rekaman seluruh event alarm pilar portal secara keseluruhan</p>
                         </div>
 
                         <!-- Quick Filter Buttons -->
                         <div class="flex items-center gap-2 flex-wrap">
                             <div class="flex bg-slate-950 border border-slate-800 rounded-lg p-1 text-xs">
-                                <button class="alarm-filter-btn px-3 py-1 rounded text-cyan-400 bg-slate-800 font-semibold" data-alarm-filter="all">Semua (20)</button>
-                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="115">Pilar 115</button>
-                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="116">Pilar 116</button>
-                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="Belum">Belum ACK</button>
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-cyan-400 bg-slate-800 font-semibold" data-alarm-filter="all" id="alarm-filter-btn-all">Semua</button>
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="115" id="alarm-filter-btn-115">Pilar 115</button>
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="116" id="alarm-filter-btn-116">Pilar 116</button>
+                                <button class="alarm-filter-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200" data-alarm-filter="Belum" id="alarm-filter-btn-belum">Belum ACK</button>
                             </div>
 
-                            <button onclick="loadRecentAlarms(true); showToast('Memperbarui event alarm...', 'info')" 
-                                    class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5">
+                            <button onclick="loadRecentAlarms(true); showToast('Memperbarui seluruh data event alarm...', 'info')" 
+                                    class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                                 </svg>
-                                Segarkan (20)
+                                Segarkan Data
                             </button>
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto max-h-[350px] border border-slate-800/80 rounded-lg">
+                    <div class="overflow-x-auto max-h-[460px] border border-slate-800/80 rounded-lg">
                         <table class="w-full text-left text-xs">
                             <thead class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 bg-[#0F1A30] z-10 shadow-sm">
                                 <tr>
