@@ -1039,6 +1039,23 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            <!-- Button Export PDF Profile below Detail Table -->
+                            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-3 border-t border-slate-800">
+                                <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <span>Cetak laporan profil lengkap untuk kendaraan alarm terpilih (Chart, Snapshot, & Data Sensor per detik).</span>
+                                </div>
+                                <button id="btn-export-alarm-profile-pdf" type="button" onclick="exportAlarmProfilePDF()"
+                                        class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                                    <svg class="w-3.5 h-3.5 text-rose-200" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"/>
+                                    </svg>
+                                    Export PDF Profile
+                                </button>
+                            </div>
                         </div>
 
                     </div>
