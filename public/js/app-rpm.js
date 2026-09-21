@@ -1588,6 +1588,30 @@ async function getImageBase64(imgElement, fallbackUrl = '') {
     });
 }
 
+// Helper to cache and retrieve BRIN logo as Base64 Data URL for PDF reports
+let cachedBrinLogoBase64 = null;
+async function getBrinLogoBase64() {
+    if (cachedBrinLogoBase64) return cachedBrinLogoBase64;
+    try {
+        const res = await fetch('/images/logo-brin.png');
+        if (res.ok) {
+            const blob = await res.blob();
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    cachedBrinLogoBase64 = reader.result;
+                    resolve(cachedBrinLogoBase64);
+                };
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+            });
+        }
+    } catch (e) {
+        console.warn('Could not load BRIN logo for PDF:', e);
+    }
+    return null;
+}
+
 // Helper to fetch batch thumbnails as base64 Data URLs for high-speed PDF rendering
 async function loadSnapshotThumbnails(idks, onProgress) {
     const thumbMap = new Map();
@@ -1659,6 +1683,13 @@ async function exportOkupasiDataPDF() {
     doc.text('LAPORAN HISTORIS OKUPASI KENDARAAN & MONITORING RADIASI', 14, 18);
     doc.setFontSize(8);
     doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | CAS OPERATOR`, 14, 23);
+
+    const brinLogo = await getBrinLogoBase64();
+    if (brinLogo) {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(183, 3.5, 14, 19, 1, 1, 'F');
+        doc.addImage(brinLogo, 'PNG', 184, 4.5, 12, 17);
+    }
 
     // Metadata Box
     doc.setFillColor(241, 245, 249);
@@ -1888,11 +1919,21 @@ async function exportAlarmDataPDF() {
     doc.setFontSize(8);
     doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | Status: VERIFIKASI ALARM`, 14, 23);
 
+    const brinLogo = await getBrinLogoBase64();
+    if (brinLogo) {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(183, 3.5, 14, 19, 1, 1, 'F');
+        doc.addImage(brinLogo, 'PNG', 184, 4.5, 12, 17);
+    }
+
     // Metadata Box
     doc.setFillColor(255, 241, 242); // Rose 50
     doc.roundedRect(14, 32, 182, 22, 2, 2, 'F');
     doc.setDrawColor(254, 205, 211);
     doc.roundedRect(14, 32, 182, 22, 2, 2, 'D');
+
+    const targetIdk = state.selectedAlarmIdk || (state.alarmVehicles && state.alarmVehicles.length ? state.alarmVehicles[0].idk : null);
+    const activeAlarm = (state.alarmVehicles || []).find(v => String(v.idk) === String(targetIdk)) || {};
 
     doc.setFontSize(8.5);
     doc.setTextColor(159, 18, 57);
@@ -1900,127 +1941,67 @@ async function exportAlarmDataPDF() {
     doc.text('Tanggal Kejadian:', 18, 38);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${alarmDate}`, 48, 38);
+    doc.text(`${alarmDate}`, 54, 38);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
     doc.text('Database:', 18, 44);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${state.activeDb}`, 48, 44);
+    doc.text(`${state.activeDb}`, 54, 44);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
     doc.text('Total Kejadian Alarm:', 18, 50);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${state.alarmVehicles?.length || 0} Event Alarm`, 48, 50);
+    doc.text(`${state.alarmVehicles?.length || 0} Event Alarm`, 54, 50);
 
-    const activeAlarm = (state.alarmVehicles || []).find(v => String(v.idk) === String(state.selectedAlarmIdk)) || {};
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
     doc.text('IDK Alarm Terpilih:', 105, 38);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${state.selectedAlarmIdk || '-'}`, 142, 38);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(159, 18, 57);
-    doc.text('Status Verifikasi:', 105, 38);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 41, 59);
-    doc.text('Verifikasi Operator Portal', 142, 38);
+    doc.text(`${targetIdk || '-'}`, 140, 38);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
     doc.text('Pilar Monitoring:', 105, 44);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text('Pilar 115 & Pilar 116', 142, 44);
+    doc.text(`Pilar ${activeAlarm.pilar || '115 & Pilar 116'}`, 140, 44);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
     doc.text('Kamera Snapshot:', 105, 50);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text('Portal Camera 01 (Snapshot Terintegrasi)', 142, 50);
+    doc.text('Portal Camera 01 (Snapshot Terintegrasi)', 140, 50);
 
-    // Section 1: Table of Alarm Vehicles for this date with photo on EVERY row (Starting directly after metadata)
-    let startY = 58;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(159, 18, 57);
-    doc.text(`DAFTAR SELURUH EVENT KENDARAAN ALARM PADA TANGGAL ${alarmDate} (${state.alarmVehicles?.length || 0} TOTAL)`, 14, startY);
-
-    // Fetch batch thumbnails for all alarm vehicles
-    showToast(`Memuat foto kendaraan alarm (0/${state.alarmVehicles?.length || 0})...`, 'info');
-    const alarmIdks = (state.alarmVehicles || []).map(v => v.idk);
-    const alarmThumbMap = await loadSnapshotThumbnails(alarmIdks, (done, total) => {
-        showToast(`Memuat foto kendaraan alarm (${done}/${total})...`, 'info');
-    });
-
-    const alarmVehiclesTableData = (state.alarmVehicles || []).map(v => [
-        v.no,
-        '', // Cell for vehicle photo thumbnail
-        v.idk,
-        v.tgl,
-        `Pilar ${v.pilar || '115'}`,
-        v.jenis || 'Alarm Gamma',
-        formatNumber(v.max_a1 || 0),
-        formatNumber(v.max_b1 || 0)
-    ]);
-
-    doc.autoTable({
-        startY: startY + 3,
-        head: [['No', 'Foto Snapshot', 'IDK Alarm', 'Waktu Kejadian', 'Pilar', 'Jenis Alarm', 'Max A1 (cps)', 'Max B1 (cps)']],
-        body: alarmVehiclesTableData.length > 0 ? alarmVehiclesTableData : [['-', '-', '-', 'Tidak ada event alarm pada tanggal ini', '-', '-', '-', '-']],
-        theme: 'striped',
-        styles: { fontSize: 7.5, cellPadding: 1.5, minCellHeight: 14, valign: 'middle', font: 'helvetica' },
-        headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
-        columnStyles: {
-            0: { halign: 'center', cellWidth: 10, valign: 'middle' },
-            1: { halign: 'center', cellWidth: 24, valign: 'middle' },
-            2: { fontStyle: 'bold', cellWidth: 28, valign: 'middle' },
-            3: { cellWidth: 36, valign: 'middle' },
-            4: { halign: 'center', cellWidth: 18, valign: 'middle' },
-            5: { cellWidth: 26, valign: 'middle' },
-            6: { halign: 'right', cellWidth: 20, valign: 'middle' },
-            7: { halign: 'right', cellWidth: 20, valign: 'middle' }
-        },
-        margin: { left: 14, right: 14 },
-        didDrawCell: function (data) {
-            if (data.section === 'body' && data.column.index === 1) {
-                const rowIdk = data.row.raw[2];
-                const imgBase64 = alarmThumbMap.get(String(rowIdk));
-                if (imgBase64) {
-                    try {
-                        doc.addImage(imgBase64, 'JPEG', data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5);
-                        doc.setDrawColor(254, 205, 211);
-                        doc.rect(data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5, 'D');
-                    } catch (err) {
-                        console.warn('PDF addImage error:', err);
-                    }
-                }
+    // Prefetch detail sensor profile for targetIdk if needed
+    if (targetIdk && (!state.currentAlarmProfileData || String(state.currentAlarmProfileData.idk) !== String(targetIdk))) {
+        try {
+            const res = await fetch(apiUrl(`/api/historis/profile/${targetIdk}`));
+            const json = await res.json();
+            if (json.status === 'success') {
+                state.currentAlarmProfileData = json.data;
             }
+        } catch (e) {
+            console.warn('Could not prefetch profile data for overall PDF:', e);
         }
-    });
+    }
 
-    // Section 2: Detail Data Profil Sensor Alarm Kendaraan Terpilih
+    // Section 1: Detail Data Profil Sensor Alarm Kendaraan Terpilih (Langsung dimulai dari sini)
+    let startY = 60;
     if (state.currentAlarmProfileData && state.currentAlarmProfileData.table_data && state.currentAlarmProfileData.table_data.length > 0) {
-        let nextY = doc.lastAutoTable.finalY + 8;
-        if (nextY > 250) {
-            doc.addPage();
-            nextY = 20;
-        }
-
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(159, 18, 57);
-        doc.text(`DETAIL DATA PROFIL SENSOR ALARM PER DETIK (IDK: ${state.selectedAlarmIdk})`, 14, nextY);
+        doc.text(`DETAIL DATA PROFIL SENSOR ALARM PER DETIK (IDK: ${targetIdk || '-'})`, 14, startY);
 
         const profileTableData = state.currentAlarmProfileData.table_data.map((r, i) => [
             i + 1,
-            r.IDK || state.selectedAlarmIdk,
+            r.IDK || targetIdk || '-',
             r.TANGGAL,
             formatNumber(r.A1),
             formatNumber(r.A2),
@@ -2031,14 +2012,19 @@ async function exportAlarmDataPDF() {
         ]);
 
         doc.autoTable({
-            startY: nextY + 3,
+            startY: startY + 3,
             head: [['No', 'IDK', 'Waktu', 'Det A1 (cps)', 'Det A2 (cps)', 'Det B1 (cps)', 'Det B2 (cps)', 'Latar A1', 'Latar A2']],
             body: profileTableData,
             theme: 'grid',
             styles: { fontSize: 7, cellPadding: 1.2, font: 'helvetica' },
-            headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold' },
+            headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold' },
             margin: { left: 14, right: 14 }
         });
+    } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text('Pilih kendaraan alarm dari daftar untuk menampilkan detail data profil sensor per detik.', 14, startY + 6);
     }
 
     const totalPages = doc.internal.getNumberOfPages();
@@ -2108,6 +2094,13 @@ async function exportAlarmProfilePDF() {
     doc.text('LAPORAN DETAIL PROFIL RADIASI & SENSOR KENDARAAN TERKENA ALARM', 14, 18);
     doc.setFontSize(8);
     doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | Status: VERIFIKASI ALARM RADIASI`, 14, 23);
+
+    const brinLogo = await getBrinLogoBase64();
+    if (brinLogo) {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(183, 3.5, 14, 19, 1, 1, 'F');
+        doc.addImage(brinLogo, 'PNG', 184, 4.5, 12, 17);
+    }
 
     // Metadata Box
     doc.setFillColor(255, 241, 242); // Rose 50

@@ -91,8 +91,8 @@
             <div class="absolute -bottom-16 -left-16 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl"></div>
 
             <div class="flex items-center gap-3 mb-6">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-lg shadow-cyan-500/30">
-                    RPM
+                <div class="w-11 h-11 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-lg shadow-white/10 flex-shrink-0">
+                    <img src="/images/logo-brin.png" alt="Logo BRIN" class="w-full h-full object-contain">
                 </div>
                 <div>
                     <h2 class="text-lg font-bold text-white tracking-wide">Radiation Portal Monitor</h2>
@@ -196,8 +196,8 @@
         <div>
             <!-- Branding Header -->
             <div class="h-16 flex items-center gap-3 px-5 border-b border-[#1A294A]">
-                <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white shadow-md shadow-cyan-500/20 text-xs">
-                    RPM
+                <div class="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-md shadow-white/5 flex-shrink-0">
+                    <img src="/images/logo-brin.png" alt="Logo BRIN" class="w-full h-full object-contain">
                 </div>
                 <div>
                     <h1 class="text-sm font-bold text-white leading-tight tracking-wide">RPM Monitor</h1>
