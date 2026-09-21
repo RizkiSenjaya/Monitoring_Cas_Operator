@@ -59,6 +59,8 @@ class SystemController extends Controller
                 'server_time' => date('Y-m-d H:i:s'),
                 'php_version' => PHP_VERSION,
                 'framework' => 'Laravel ' . app()->version(),
+                'environment' => !empty($_ENV['VERCEL']) ? 'Vercel Serverless' : 'Local Server',
+                'mode' => is_dir('D:\\CAS_OPERATOR') ? 'Production Local D:\CAS_OPERATOR' : 'Cloud Demo Mode (Bundled SQLite)',
                 'cas_operator_path' => $baseDir,
                 'cas_operator_accessible' => is_dir($baseDir),
                 'active_db' => $activeDb,

@@ -15,6 +15,13 @@ $app = new Illuminate\Foundation\Application(
     $_ENV['APP_BASE_PATH'] ?? dirname(__DIR__)
 );
 
+// Support serverless writable storage path (e.g. /tmp/storage on Vercel)
+if (!empty($_ENV['APP_STORAGE'])) {
+    $app->useStoragePath($_ENV['APP_STORAGE']);
+} elseif (!empty($_SERVER['APP_STORAGE'])) {
+    $app->useStoragePath($_SERVER['APP_STORAGE']);
+}
+
 /*
 |--------------------------------------------------------------------------
 | Bind Important Interfaces
