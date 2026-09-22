@@ -252,7 +252,7 @@
                 <span class="text-[11px] font-mono text-slate-300 font-semibold">Web GUI - SQLite</span>
             </div>
             <div class="text-[10px] text-slate-500 font-mono">
-                Database: <span id="active-db-label" class="text-cyan-400 font-bold">rpm_1.db</span>
+                Database: <span id="active-db-label" class="text-cyan-400 font-bold">{{ $activeDb ?? 'rpm_1.db' }}</span>
             </div>
         </div>
     </aside>
@@ -278,10 +278,10 @@
                 <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg">
                     <span class="text-[11px] text-slate-400 font-medium">DB:</span>
                     <select id="db-selector-dropdown" onchange="switchDatabase(this.value)" class="bg-transparent text-xs text-cyan-300 font-mono font-bold focus:outline-none cursor-pointer">
-                        <option value="rpm_1.db" class="bg-slate-900 text-slate-200">rpm_1.db (2.03M Okupasi)</option>
-                        <option value="rpm.db" class="bg-slate-900 text-slate-200">rpm.db (1.48M Okupasi)</option>
-                        <option value="rpm_22.db" class="bg-slate-900 text-slate-200">rpm_22.db (Arsip)</option>
-                        <option value="log.db" class="bg-slate-900 text-slate-200">log.db (System Logs)</option>
+                        <option value="rpm_1.db" {{ ($activeDb ?? 'rpm_1.db') === 'rpm_1.db' ? 'selected' : '' }} class="bg-slate-900 text-slate-200">rpm_1.db (2.03M Okupasi)</option>
+                        <option value="rpm.db" {{ ($activeDb ?? '') === 'rpm.db' ? 'selected' : '' }} class="bg-slate-900 text-slate-200">rpm.db (1.48M Okupasi)</option>
+                        <option value="rpm_22.db" {{ ($activeDb ?? '') === 'rpm_22.db' ? 'selected' : '' }} class="bg-slate-900 text-slate-200">rpm_22.db (Arsip)</option>
+                        <option value="log.db" {{ ($activeDb ?? '') === 'log.db' ? 'selected' : '' }} class="bg-slate-900 text-slate-200">log.db (System Logs)</option>
                     </select>
                 </div>
 
@@ -345,7 +345,7 @@
                     <!-- Card 3: Data Log -->
                     <div class="bg-[#0F1A30] border border-[#1A294A] rounded-xl p-4 shadow-lg hover:border-cyan-500/40 transition-all">
                         <span class="text-xs font-medium text-slate-400">Data Log</span>
-                        <div id="stat-data-log" class="text-2xl font-extrabold text-white mt-1 tracking-tight">88</div>
+                        <div id="stat-data-log" class="text-2xl font-extrabold text-white mt-1 tracking-tight">167</div>
                         <span class="text-[11px] text-slate-500 mt-0.5 block">rekaman alarm</span>
                     </div>
 
@@ -487,7 +487,7 @@
                         <div class="mb-3 flex justify-between items-center">
                             <div>
                                 <h3 class="text-sm font-bold text-white">Grafik Laju Cacah (cps) Real-Time</h3>
-                                <p class="text-xs text-slate-400">Perbandingan Pilar 115 vs Pilar 116 (1 jam terakhir)</p>
+                                <p class="text-xs text-slate-400">Streaming per detik • Pilar 115 vs Pilar 116 (60 detik terakhir)</p>
                             </div>
                             <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono">Area Chart</span>
                         </div>
@@ -500,7 +500,7 @@
                         <div class="mb-3 flex justify-between items-center">
                             <div>
                                 <h3 class="text-sm font-bold text-white">Grafik Suhu (°C) & Kelembaban (%)</h3>
-                                <p class="text-xs text-slate-400">Telemetri Lingkungan Pilar 115 & Pilar 116</p>
+                                <p class="text-xs text-slate-400">Streaming per detik • Telemetri Lingkungan Pilar 115 (60 detik terakhir)</p>
                             </div>
                             <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono">Sensors</span>
                         </div>
@@ -734,21 +734,57 @@
 
                             <!-- Action Buttons Under Date/Calendar (4 Buttons: Okupasi Data, Export CSV, Export PDF, Exit) -->
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                                <button type="button" id="btn-okupasi-data" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-cyan-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <span class="truncate">Okupasi Data</span>
-                                </button>
-                                <button type="button" id="btn-export-okupasi-csv" onclick="exportOkupasiDataCSV()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                    <span class="truncate">Export CSV</span>
-                                </button>
-                                <button type="button" id="btn-export-okupasi-pdf" onclick="exportOkupasiDataPDF()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-rose-950/60 active:bg-slate-900 border border-slate-700 hover:border-rose-500/50 text-xs font-semibold text-slate-200 hover:text-rose-300 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <svg class="w-3.5 h-3.5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1m0 4h6m-6 4h6"/></svg>
-                                    <span class="truncate">Export PDF</span>
-                                </button>
-                                <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
-                                    <span>Exit</span>
-                                </button>
+                                <div class="relative group">
+                                    <button type="button" id="btn-okupasi-data" class="w-full py-2 px-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs rounded-lg shadow-sm shadow-cyan-900/30 transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse flex-shrink-0"></span>
+                                        <span>Okupasi</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-cyan-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                                            Mode Data Okupasi Kendaraan
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-cyan-500/40 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
+                                <div class="relative group">
+                                    <button type="button" id="btn-export-okupasi-csv" onclick="exportOkupasiDataCSV()" class="w-full py-2 px-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        <span class="font-bold text-emerald-300">CSV</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-emerald-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                            Export Data Kendaraan ke CSV (Excel)
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-emerald-500/40 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
+                                <div class="relative group">
+                                    <button type="button" id="btn-export-okupasi-pdf" onclick="exportOkupasiDataPDF()" class="w-full py-2 px-1 bg-slate-800 hover:bg-cyan-950/60 active:bg-slate-900 border border-slate-700 hover:border-cyan-500/50 text-xs font-semibold text-slate-200 hover:text-cyan-300 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1m0 4h6m-6 4h6"/></svg>
+                                        <span class="font-bold text-cyan-300">PDF</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-cyan-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                                            Export Laporan Lengkap PDF (Tanggal Terpilih)
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-cyan-500/40 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
+                                <div class="relative group">
+                                    <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
+                                        <span>Exit</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-slate-700 text-slate-200 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap">
+                                            Kembali ke Dashboard Utama
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -855,6 +891,26 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            <!-- Button Export PDF Profile below Detail Table -->
+                            <div class="flex justify-end pt-3 mt-3 border-t border-slate-800">
+                                <div class="relative group">
+                                    <button id="btn-export-okupasi-profile-pdf" type="button" onclick="exportOkupasiProfilePDF()"
+                                            class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-cyan-600/30 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                                        <svg class="w-3.5 h-3.5 text-cyan-200" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Export PDF Profile
+                                    </button>
+                                    <div class="absolute bottom-full right-0 mb-2 hidden group-hover:flex flex-col items-end z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-cyan-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                                            Export Laporan Detail Profil Sensor Kendaraan Terpilih ke format PDF
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-cyan-500/40 transform rotate-45 mr-6 -mt-1"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                     </div>
@@ -880,7 +936,7 @@
                         <span class="text-xs text-rose-400 font-medium px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30">Monitoring & Verifikasi Alarm Radiasi</span>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="text-xs text-slate-400 font-mono">Database Aktif: <strong id="alarm-active-db-badge" class="text-rose-400">rpm_1.db</strong></span>
+                        <span class="text-xs text-slate-400 font-mono">Database Aktif: <strong id="alarm-active-db-badge" class="text-rose-400">{{ $activeDb ?? 'rpm_1.db' }}</strong></span>
                         <span class="text-xs text-slate-500 font-mono">D:\CAS_OPERATOR (Read-Only)</span>
                     </div>
                 </div>
@@ -913,22 +969,57 @@
 
                             <!-- Action Buttons Under Date/Calendar (4 Buttons Row: Alarm Mode, Export CSV, Export PDF, Exit) -->
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-                                <button type="button" id="btn-alarm-refresh" class="w-full py-2 px-1.5 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs rounded-lg shadow-sm shadow-rose-900/30 transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping flex-shrink-0"></span>
-                                    <span class="truncate">Alarm Data</span>
-                                </button>
-                                <button type="button" id="btn-export-alarm-csv" onclick="exportAlarmDataCSV()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                    <span class="truncate">Export CSV</span>
-                                </button>
-                                <button type="button" id="btn-export-alarm-pdf" onclick="exportAlarmDataPDF()" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-rose-950/60 active:bg-slate-900 border border-slate-700 hover:border-rose-500/50 text-xs font-semibold text-slate-200 hover:text-rose-300 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <svg class="w-3.5 h-3.5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1m0 4h6m-6 4h6"/></svg>
-                                    <span class="truncate">Export PDF</span>
-                                </button>
-                                <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                    <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
-                                    <span>Exit</span>
-                                </button>
+                                <div class="relative group">
+                                    <button type="button" id="btn-alarm-refresh" class="w-full py-2 px-1 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs rounded-lg shadow-sm shadow-rose-900/30 transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping flex-shrink-0"></span>
+                                        <span>Alarm Data</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-rose-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                            Mode Data Alarm Radiasi
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-rose-500/40 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
+                                <div class="relative group">
+                                    <button type="button" id="btn-export-alarm-csv" onclick="exportAlarmDataCSV()" class="w-full py-2 px-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        <span class="font-bold text-emerald-300">CSV</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-emerald-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                            Export Data Alarm ke CSV (Excel)
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-emerald-500/40 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
+                                <div class="relative group">
+                                    <button type="button" id="btn-export-alarm-pdf" onclick="exportAlarmDataPDF()" class="w-full py-2 px-1 bg-slate-800 hover:bg-rose-950/60 active:bg-slate-900 border border-slate-700 hover:border-rose-500/50 text-xs font-semibold text-slate-200 hover:text-rose-300 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1m0 4h6m-6 4h6"/></svg>
+                                        <span class="font-bold text-rose-300">PDF</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-rose-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                            Export Laporan Lengkap PDF (Tanggal Terpilih)
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-rose-500/40 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
+                                <div class="relative group">
+                                    <button type="button" onclick="switchTab('dashboard')" class="w-full py-2 px-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-300 hover:text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                                        <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
+                                        <span>Exit</span>
+                                    </button>
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-slate-700 text-slate-200 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap">
+                                            Kembali ke Dashboard Utama
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1044,13 +1135,22 @@
 
                             <!-- Button Export PDF Profile below Detail Table -->
                             <div class="flex justify-end pt-3 mt-3 border-t border-slate-800">
-                                <button id="btn-export-alarm-profile-pdf" type="button" onclick="exportAlarmProfilePDF()"
-                                        class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
-                                    <svg class="w-3.5 h-3.5 text-rose-200" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"/>
-                                    </svg>
-                                    Export PDF Profile
-                                </button>
+                                <div class="relative group">
+                                    <button id="btn-export-alarm-profile-pdf" type="button" onclick="exportAlarmProfilePDF()"
+                                            class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                                        <svg class="w-3.5 h-3.5 text-rose-200" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Export PDF Profile
+                                    </button>
+                                    <div class="absolute bottom-full right-0 mb-2 hidden group-hover:flex flex-col items-end z-50 pointer-events-none">
+                                        <div class="bg-slate-900 border border-rose-500/40 text-slate-100 text-[11px] font-medium py-1 px-2.5 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                            Export Laporan Detail Profil Sensor Alarm Terpilih ke format PDF
+                                        </div>
+                                        <div class="w-2 h-2 bg-slate-900 border-r border-b border-rose-500/40 transform rotate-45 mr-6 -mt-1"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1255,7 +1355,7 @@
 
     <!-- Scripts -->
     <script src="/js/firebase-auth.js"></script>
-    <script src="/js/app-rpm.js"></script>
+    <script src="/js/app-rpm.js?v={{ file_exists(public_path('js/app-rpm.js')) ? filemtime(public_path('js/app-rpm.js')) : time() }}"></script>
     
     <script>
         // Helpers for Auth Error Box

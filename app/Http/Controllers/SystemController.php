@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
 use App\Services\RpmDatabaseService;
 
 class SystemController extends Controller
@@ -85,5 +86,104 @@ class SystemController extends Controller
             'active_db' => $this->rpmService->getActiveDb(),
             'message' => $success ? "Database aktif berhasil diubah ke {$dbName}" : "Database tidak valid"
         ]);
+    }
+
+    /**
+     * Get shared activity logs (visible to all users/browsers)
+     */
+    public function activityLogs(): JsonResponse
+    {
+        $file = 'activity_logs.json';
+        $logs = [];
+        if (Storage::exists($file)) {
+            $raw = Storage::get($file);
+            $logs = json_decode($raw, true) ?: [];
+        }
+        return response()->json([
+            'status' => 'success',
+            'data' => $logs
+        ]);
+    }
+
+    /**
+     * Append a new shared activity log entry
+     */
+    public function addActivityLog(Request $request): JsonResponse
+    {
+        $file = 'activity_logs.json';
+        $logs = [];
+        if (Storage::exists($file)) {
+            $raw = Storage::get($file);
+            $logs = json_decode($raw, true) ?: [];
+        }
+
+        $entry = [
+            'id'     => 'log_' . time() . '_' . substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 6),
+            'time'   => date('Y-m-d H:i:s'),
+            'type'   => $request->input('type', 'INFO'),
+            'user'   => $request->input('user', 'Operator'),
+            'status' => $request->input('status', 'Sukses'),
+            'detail' => $request->input('detail', '-'),
+        ];
+
+        array_unshift($logs, $entry);
+        if (count($logs) > 200) {
+            $logs = array_slice($logs, 0, 200);
+        }
+
+        Storage::put($file, json_encode($logs, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        return response()->json(['status' => 'success', 'entry' => $entry]);
+    }
+
+    /**
+     * Clear all activity logs
+     */
+    public function clearActivityLogs(): JsonResponse
+    {
+        Storage::put('activity_logs.json', '[]');
+        return response()->json(['status' => 'success']);
+    }
+
+    /**
+     * Download active database summary as CSV
+     */
+    public function downloadDbCsv(Request $request)
+    {
+        $db = $request->query('db', $this->rpmService->getActiveDb());
+        $table = $request->query('table', 'tblOkupasi');
+
+        $allowed = ['tblOkupasi', 'tblAlarm', 'tblLog', 'tbllatar'];
+        if (!in_array($table, $allowed)) {
+            return response()->json(['error' => 'Invalid table'], 400);
+        }
+
+        try {
+            $pdo = $this->rpmService->getConnection($db);
+            $stmt = $pdo->query("SELECT * FROM {$table} ORDER BY rowid DESC LIMIT 50000");
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (empty($rows)) {
+                return response("Tidak ada data di tabel {$table}", 200)
+                    ->header('Content-Type', 'text/csv')
+                    ->header('Content-Disposition', "attachment; filename=\"{$db}_{$table}.csv\"");
+            }
+
+            $headers = array_keys($rows[0]);
+            $csv = implode(',', $headers) . "\n";
+            foreach ($rows as $row) {
+                $cols = array_map(function($v) {
+                    $v = str_replace('"', '""', (string)$v);
+                    return '"' . $v . '"';
+                }, $row);
+                $csv .= implode(',', $cols) . "\n";
+            }
+
+            return response($csv, 200)
+                ->header('Content-Type', 'text/csv; charset=UTF-8')
+                ->header('Content-Disposition', "attachment; filename=\"{$db}_{$table}_" . date('Ymd_His') . ".csv\"");
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Gagal membaca database: ' . $e->getMessage()], 500);
+        }
     }
 }

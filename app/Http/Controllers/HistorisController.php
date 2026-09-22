@@ -62,6 +62,24 @@ class HistorisController extends Controller
     }
 
     /**
+     * Get per-second sensor points from tblOkupasi for a date
+     */
+    public function sensorPoints(Request $request): JsonResponse
+    {
+        $date = $request->query('date', '2025-11-14');
+        $limit = (int)$request->query('limit', 300);
+        $points = $this->rpmService->getOkupasiSensorPointsByDate($date, $limit);
+
+        return response()->json([
+            'status' => 'success',
+            'date' => $date,
+            'total' => count($points),
+            'count' => count($points),
+            'data' => $points
+        ]);
+    }
+
+    /**
      * Get profile time-series data for a vehicle IDK
      */
     public function profile(string $idk): JsonResponse

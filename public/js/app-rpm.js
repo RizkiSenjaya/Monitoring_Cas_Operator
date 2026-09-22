@@ -71,9 +71,9 @@ function formatNumber(num) {
 document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initNavigation();
+    initDatabaseSwitcher(); // Run switcher first to restore activeDb before any API calls
     initDashboard();
     initHistorisCalendar();
-    initDatabaseSwitcher();
     initAlarmFilters();
     initHistorisFilterBar();
     initActivityLogFilters();
@@ -889,35 +889,36 @@ function start1SecondStreaming() {
                 // 3. Sliding tick on Alarm Chart
                 pushAlarmSample(secLabel, tick.alarm_count);
 
-                // 4. CPS Chart smooth update
+                // 4. CPS Chart per-second smooth update (60-second rolling window)
                 if (state.charts.cps && state.charts.cps.data) {
                     const cpsLabels = state.charts.cps.data.labels;
                     const ds115 = state.charts.cps.data.datasets[0].data;
                     const ds116 = state.charts.cps.data.datasets[1].data;
-                    if (cpsLabels.length > 20) {
+                    // Sliding window: keep last 60 seconds
+                    if (cpsLabels.length >= 60) {
                         cpsLabels.shift();
                         ds115.shift();
                         ds116.shift();
                     }
-                    cpsLabels.push(secLabel.substring(0, 5));
+                    cpsLabels.push(secLabel); // full HH:MM:SS
                     ds115.push(tick.a1);
                     ds116.push(tick.b1);
                     state.charts.cps.update('none');
                 }
 
-                // 5. Suhu & Kelembaban Chart smooth update (Realtime)
+                // 5. Suhu & Kelembaban Chart per-second smooth update (60-second rolling window)
                 if (state.charts.env && state.charts.env.data) {
                     const envLabels = state.charts.env.data.labels;
                     const dsTemp115 = state.charts.env.data.datasets[0].data;
                     const dsTemp116 = state.charts.env.data.datasets[1].data;
                     const dsRh115 = state.charts.env.data.datasets[2].data;
-                    if (envLabels.length > 20) {
+                    if (envLabels.length >= 60) {
                         envLabels.shift();
                         dsTemp115.shift();
                         dsTemp116.shift();
                         dsRh115.shift();
                     }
-                    envLabels.push(secLabel.substring(0, 5));
+                    envLabels.push(secLabel); // full HH:MM:SS
                     const t115 = Number(tick.temp) || 35.2;
                     const t116 = Math.round((t115 + 1.3) * 10) / 10;
                     const rh = Number(tick.humidity) || 44.5;
@@ -948,88 +949,95 @@ function startRealtimePolling() {
 }
 
 async function loadTelemetryCharts() {
-    try {
-        const res = await fetch(apiUrl('/api/dashboard/charts'));
-        const json = await res.json();
-        if (json.status === 'success') {
-            renderTelemetryCharts(json.data);
-        }
-    } catch (e) {
-        console.error('Error fetching telemetry charts:', e);
-    }
+    // Charts are initialized empty and filled in real-time via 1-second streaming.
+    // We still call renderTelemetryCharts to create the Chart.js instances.
+    renderTelemetryCharts();
 }
 
 function renderTelemetryCharts(data) {
-    if (!data || !data.realtime) return;
-
-    // 3. Chart Realtime Laju Cacah
+    // Initialize CPS chart with empty data — it fills per-second via streaming
     const cpsCtx = document.getElementById('chart-cps-realtime');
-    if (cpsCtx && data.realtime) {
+    if (cpsCtx) {
         if (state.charts.cps) state.charts.cps.destroy();
         state.charts.cps = new Chart(cpsCtx, {
             type: 'line',
             data: {
-                labels: data.realtime.labels,
+                labels: [],
                 datasets: [
                     {
                         label: 'Pilar 115 (cps)',
-                        data: data.realtime.cps115,
+                        data: [],
                         borderColor: '#00E5FF',
+                        backgroundColor: 'rgba(0,229,255,0.08)',
                         borderWidth: 2,
                         tension: 0.3,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        spanGaps: true,
+                        fill: true
                     },
                     {
                         label: 'Pilar 116 (cps)',
-                        data: data.realtime.cps116,
+                        data: [],
                         borderColor: '#3B82F6',
+                        backgroundColor: 'rgba(59,130,246,0.06)',
                         borderWidth: 2,
                         tension: 0.3,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        spanGaps: true,
+                        fill: true
                     }
                 ]
             },
-            options: getDarkChartOptions('Laju Cacah Realtime 1 Jam Terakhir', 'cps')
+            options: getDarkChartOptions('Grafik Laju Cacah (cps) Real-Time Per Detik', 'cps')
         });
     }
 
-    // 4. Chart Suhu & Kelembaban
+    // Initialize Suhu & Kelembaban chart with empty data — fills per-second via streaming
     const envCtx = document.getElementById('chart-env-realtime');
-    if (envCtx && data.realtime) {
+    if (envCtx) {
         if (state.charts.env) state.charts.env.destroy();
         state.charts.env = new Chart(envCtx, {
             type: 'line',
             data: {
-                labels: data.realtime.labels,
+                labels: [],
                 datasets: [
                     {
                         label: 'Suhu Pilar 115 (°C)',
-                        data: data.realtime.temp115,
+                        data: [],
                         borderColor: '#F59E0B',
+                        backgroundColor: 'rgba(245,158,11,0.06)',
                         borderWidth: 2,
                         tension: 0.3,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        spanGaps: true,
+                        fill: true
                     },
                     {
                         label: 'Suhu Pilar 116 (°C)',
-                        data: data.realtime.temp116,
+                        data: [],
                         borderColor: '#EF4444',
+                        backgroundColor: 'rgba(239,68,68,0.06)',
                         borderWidth: 2,
                         tension: 0.3,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        spanGaps: true,
+                        fill: true
                     },
                     {
                         label: 'Kelembaban Pilar 115 (%)',
-                        data: data.realtime.rh115,
+                        data: [],
                         borderColor: '#10B981',
+                        backgroundColor: 'rgba(16,185,129,0.05)',
                         borderDash: [4, 4],
                         borderWidth: 2,
                         tension: 0.3,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        spanGaps: true,
+                        fill: true
                     }
                 ]
             },
-            options: getDarkChartOptions('Suhu (°C) & Kelembaban (%) Realtime', 'Nilai')
+            options: getDarkChartOptions('Grafik Suhu (°C) & Kelembaban (%) Real-Time Per Detik', 'Nilai')
         });
     }
 }
@@ -1038,6 +1046,7 @@ function getDarkChartOptions(title, yLabel) {
     return {
         responsive: true,
         maintainAspectRatio: false,
+        animation: false,
         plugins: {
             legend: {
                 display: true,
@@ -1054,7 +1063,12 @@ function getDarkChartOptions(title, yLabel) {
         scales: {
             x: {
                 grid: { color: 'rgba(51, 65, 85, 0.3)' },
-                ticks: { color: '#64748B', font: { size: 10 } }
+                ticks: {
+                    color: '#64748B',
+                    font: { size: 9 },
+                    maxTicksLimit: 10,
+                    maxRotation: 0
+                }
             },
             y: {
                 grid: { color: 'rgba(51, 65, 85, 0.3)' },
@@ -1650,7 +1664,7 @@ async function loadSnapshotThumbnails(idks, onProgress) {
     return thumbMap;
 }
 
-// Export occupation records to PDF (jsPDF + autoTable)
+// Export occupation records to PDF (jsPDF + autoTable) - Per Tanggal Terpilih
 async function exportOkupasiDataPDF() {
     if (!window.jspdf || !window.jspdf.jsPDF) {
         showToast('Library jsPDF sedang dimuat, coba sesaat lagi...', 'warning');
@@ -1659,7 +1673,35 @@ async function exportOkupasiDataPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    showToast('Menyiapkan dokumen PDF Historis Okupasi...', 'info');
+    const defaultDateStr = (state.activeDb === 'rpm.db') ? '2025-11-29' : '2025-11-14';
+    const okupasiDate = state.selectedDate || defaultDateStr;
+
+    showToast(`Menyiapkan dokumen PDF Historis Okupasi tanggal ${okupasiDate}...`, 'info');
+
+    // 1. Ensure currentVehicles are loaded for okupasiDate
+    if (!state.currentVehicles || !state.currentVehicles.length) {
+        try {
+            const resVeh = await fetch(apiUrl(`/api/historis/vehicles?date=${okupasiDate}`));
+            const jsonVeh = await resVeh.json();
+            if (jsonVeh.status === 'success' && jsonVeh.data && jsonVeh.data.length > 0) {
+                state.currentVehicles = jsonVeh.data;
+            }
+        } catch (eVeh) {
+            console.warn('Could not prefetch vehicles for PDF:', eVeh);
+        }
+    }
+
+    // 2. Fetch sensor points for this selected date
+    let sensorPoints = [];
+    try {
+        const resSens = await fetch(apiUrl(`/api/historis/sensor-points?date=${okupasiDate}&limit=300`));
+        const jsonSens = await resSens.json();
+        if (jsonSens.status === 'success' && Array.isArray(jsonSens.data)) {
+            sensorPoints = jsonSens.data;
+        }
+    } catch (eSens) {
+        console.warn('Could not fetch okupasi sensor points for PDF:', eSens);
+    }
 
     const primaryColor = [15, 23, 42]; // Slate 900
     const accentCyan = [6, 182, 212];  // Cyan 500
@@ -1679,10 +1721,10 @@ async function exportOkupasiDataPDF() {
     doc.text('RADIATION PORTAL MONITOR (RPM) - CAS OPERATOR', 14, 11);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(148, 163, 184);
-    doc.text('LAPORAN HISTORIS OKUPASI KENDARAAN & MONITORING RADIASI', 14, 18);
+    doc.setTextColor(148, 163, 184); // Slate 400
+    doc.text('LAPORAN HISTORIS OKUPASI KENDARAAN & PROFIL SENSOR PER DETIK', 14, 18);
     doc.setFontSize(8);
-    doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | CAS OPERATOR`, 14, 23);
+    doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | Status: VERIFIKASI OKUPASI`, 14, 23);
 
     const brinLogo = await getBrinLogoBase64();
     if (brinLogo) {
@@ -1692,104 +1734,66 @@ async function exportOkupasiDataPDF() {
     }
 
     // Metadata Box
-    doc.setFillColor(241, 245, 249);
+    doc.setFillColor(241, 245, 249); // Slate 100
     doc.roundedRect(14, 32, 182, 22, 2, 2, 'F');
-    doc.setDrawColor(203, 213, 225);
+    doc.setDrawColor(203, 213, 225); // Slate 300
     doc.roundedRect(14, 32, 182, 22, 2, 2, 'D');
 
     doc.setFontSize(8.5);
-    doc.setTextColor(30, 41, 59);
+    doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'bold');
     doc.text('Tanggal Terpilih:', 18, 38);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${state.selectedDate}`, 46, 38);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${okupasiDate}`, 52, 38);
 
     doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
     doc.text('Database:', 18, 44);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${state.activeDb}`, 46, 44);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${state.activeDb}`, 52, 44);
 
     doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
     doc.text('Total Kendaraan:', 18, 50);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${state.currentVehicles?.length || 0} Kendaraan (Semua)`, 46, 50);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${state.currentVehicles?.length || 0} Kendaraan Terdaftar`, 52, 50);
 
     doc.setFont('helvetica', 'bold');
-    doc.text('Kendaraan Aktif (IDK):', 105, 38);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Status Portal:', 105, 38);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${state.selectedIdk || '-'}`, 142, 38);
+    doc.setTextColor(51, 65, 85);
+    doc.text('Normal / Terintegrasi', 142, 38);
 
     doc.setFont('helvetica', 'bold');
-    doc.text('Status Portal:', 105, 44);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Pilar Monitoring:', 105, 44);
     doc.setFont('helvetica', 'normal');
-    doc.text('Normal / Terintegrasi', 142, 44);
+    doc.setTextColor(51, 65, 85);
+    doc.text('Pilar 115 & Pilar 116', 142, 44);
 
     doc.setFont('helvetica', 'bold');
-    doc.text('Kamera Snapshot:', 105, 50);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Titik Rekaman:', 105, 50);
     doc.setFont('helvetica', 'normal');
-    doc.text('Portal Entrance Camera 01', 142, 50);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${sensorPoints.length} Titik Sensor Terpantau`, 142, 50);
 
-    // Section 1: Snapshot Camera Image of Selected Vehicle
+    // Section 1: Table of Vehicles for this date with photo on EVERY row
     let startY = 58;
-    const imgEl = document.getElementById('vehicle-snapshot-img');
-    const base64Img = await getImageBase64(imgEl, `/api/historis/snapshot/${state.selectedIdk}`);
-
-    if (base64Img) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(15, 23, 42);
-        doc.text(`FOTO SNAPSHOT KENDARAAN (IDK: ${state.selectedIdk})`, 14, startY + 4);
-
-        try {
-            doc.addImage(base64Img, 'JPEG', 14, startY + 6, 68, 45);
-            doc.setDrawColor(15, 23, 42);
-            doc.rect(14, startY + 6, 68, 45, 'D');
-
-            doc.setFillColor(15, 23, 42);
-            doc.rect(14, startY + 51, 68, 5, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(7);
-            doc.setFont('helvetica', 'bold');
-            doc.text(`CAM 01 • ${state.selectedIdk} • ${state.selectedDate}`, 16, startY + 54.5);
-
-            doc.setFillColor(248, 250, 252);
-            doc.rect(86, startY + 6, 110, 50, 'F');
-            doc.setDrawColor(226, 232, 240);
-            doc.rect(86, startY + 6, 110, 50, 'D');
-
-            doc.setFontSize(8.5);
-            doc.setTextColor(15, 23, 42);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Ringkasan Profil Radiasi Kendaraan', 90, startY + 12);
-
-            const activeVeh = (state.currentVehicles || []).find(v => String(v.idk) === String(state.selectedIdk)) || {};
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(71, 85, 105);
-            doc.text(`Waktu Lintasan: ${activeVeh.tgl || state.selectedDate}`, 90, startY + 18);
-            doc.text(`Jumlah Titik Pengukuran: ${activeVeh.points || '-'} titik sampel`, 90, startY + 24);
-            doc.text(`Nilai Puncak A1: ${formatNumber(activeVeh.max_a1 || 0)} cps`, 90, startY + 30);
-            doc.text(`Nilai Puncak B1: ${formatNumber(activeVeh.max_b1 || 0)} cps`, 90, startY + 36);
-            doc.text('Keterangan: Lolos pemeriksaan radiasi (Normal)', 90, startY + 42);
-
-            startY += 62;
-        } catch (e) {
-            console.warn('Could not render image to PDF:', e);
-            startY += 8;
-        }
-    }
-
-    // Section 2: Table of Vehicles for this date with photo on EVERY row
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
-    doc.text(`DAFTAR SELURUH KENDARAAN PADA TANGGAL ${state.selectedDate} (${state.currentVehicles?.length || 0} TOTAL)`, 14, startY);
+    doc.text(`DAFTAR SELURUH KENDARAAN PADA TANGGAL ${okupasiDate} (${state.currentVehicles?.length || 0} TOTAL)`, 14, startY);
 
     // Fetch batch thumbnails for all vehicles
-    showToast(`Memuat foto seluruh kendaraan (0/${state.currentVehicles?.length || 0})...`, 'info');
+    showToast(`Memuat foto kendaraan (${state.currentVehicles?.length || 0})...`, 'info');
     const vehicleIdks = (state.currentVehicles || []).map(v => v.idk);
     const vehicleThumbMap = await loadSnapshotThumbnails(vehicleIdks, (done, total) => {
-        showToast(`Memuat foto seluruh kendaraan (${done}/${total})...`, 'info');
+        showToast(`Memuat foto kendaraan (${done}/${total})...`, 'info');
     });
 
     const vehicleTableData = (state.currentVehicles || []).map(v => [
@@ -1805,7 +1809,7 @@ async function exportOkupasiDataPDF() {
     doc.autoTable({
         startY: startY + 3,
         head: [['No', 'Foto Snapshot', 'IDK Kendaraan', 'Tanggal / Jam', 'Points', 'Max A1 (cps)', 'Max B1 (cps)']],
-        body: vehicleTableData.length > 0 ? vehicleTableData : [['-', '-', '-', 'Tidak ada data kendaraan', '-', '-', '-']],
+        body: vehicleTableData.length > 0 ? vehicleTableData : [['-', '-', '-', `Tidak ada data kendaraan pada tanggal ${okupasiDate}`, '-', '-', '-']],
         theme: 'striped',
         styles: { fontSize: 7.5, cellPadding: 1.5, minCellHeight: 14, valign: 'middle', font: 'helvetica' },
         headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
@@ -1836,23 +1840,401 @@ async function exportOkupasiDataPDF() {
         }
     });
 
+    // Section 2: Detail Data Profil Sensor Okupasi Per Detik (Pada Tanggal Terpilih)
+    let nextY = doc.lastAutoTable.finalY + 8;
+    if (nextY > 240) {
+        doc.addPage();
+        nextY = 20;
+    }
 
-    // Section 3: Detail Data Profil Sensor Kendaraan Terpilih
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`DETAIL DATA PROFIL SENSOR OKUPASI PER DETIK (TANGGAL ${okupasiDate}: ${sensorPoints.length.toLocaleString('id-ID')} REKAMAN)`, 14, nextY);
+
+    const sensorTableData = sensorPoints.map((r, i) => [
+        i + 1,
+        r.idk || '-',
+        r.waktu || '-',
+        formatNumber(r.a1 ?? 0),
+        formatNumber(r.a2 ?? 0),
+        formatNumber(r.b1 ?? 0),
+        formatNumber(r.b2 ?? 0),
+        formatNumber(r.latarA1 ?? 1095),
+        formatNumber(r.latarA2 ?? 989)
+    ]);
+
+    doc.autoTable({
+        startY: nextY + 3,
+        head: [['No', 'IDK', 'Waktu', 'Det A1 (cps)', 'Det A2 (cps)', 'Det B1 (cps)', 'Det B2 (cps)', 'Latar A1', 'Latar A2']],
+        body: sensorTableData.length > 0 ? sensorTableData : [['-', '-', '-', `Tidak ada rekaman data sensor pada tanggal ${okupasiDate}`, '-', '-', '-', '-', '-']],
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 1.2, font: 'helvetica' },
+        headStyles: { fillColor: [8, 145, 178], textColor: [255, 255, 255], fontStyle: 'bold' },
+        margin: { left: 14, right: 14 }
+    });
+
+    // Page numbering and footer with print date on the final page
+    const totalPages = doc.internal.getNumberOfPages();
+    const now = new Date();
+    const printDateStr = now.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    }) + ', ' + now.toLocaleTimeString('id-ID');
+
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+
+        // Bottom divider line
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.setLineWidth(0.3);
+        doc.line(14, 286, 196, 286);
+
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184); // Slate 400
+        doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan Okupasi RPM CAS Operator`, 14, 290);
+
+        // Khusus halaman akhir: tambahkan tanggal cetak di bottom header (footer) sebelah kanan
+        if (i === totalPages) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(8, 145, 178); // Cyan 600
+            doc.text(`Tanggal Cetak: ${printDateStr}`, 196, 290, { align: 'right' });
+        }
+    }
+
+    doc.save(`Laporan_Historis_Okupasi_${okupasiDate}_Keseluruhan.pdf`);
+    showToast('Berhasil mengunduh Laporan PDF Historis Okupasi Keseluruhan!', 'success');
+}
+window.exportOkupasiDataPDF = exportOkupasiDataPDF;
+
+// Export single occupation vehicle detailed profile to PDF (Snapshot, Radiation Chart, & Second-by-Second Sensor Grid)
+async function exportOkupasiProfilePDF() {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        showToast('Library jsPDF sedang dimuat, coba sesaat lagi...', 'warning');
+        return;
+    }
+
+    const targetIdk = state.selectedIdk || (state.currentVehicles && state.currentVehicles.length ? state.currentVehicles[0].idk : null);
+    if (!targetIdk) {
+        showToast('Pilih kendaraan okupasi dari daftar terlebih dahulu', 'warning');
+        return;
+    }
+
+    showToast(`Menyiapkan Laporan PDF Profil Okupasi IDK ${targetIdk}...`, 'info');
+
+    // Ensure we have current profile data
+    if (!state.currentOkupasiProfileData || String(state.currentOkupasiProfileData.idk) !== String(targetIdk)) {
+        try {
+            const res = await fetch(apiUrl(`/api/historis/profile/${targetIdk}`));
+            const json = await res.json();
+            if (json.status === 'success') {
+                state.currentOkupasiProfileData = json.data;
+            }
+        } catch (e) {
+            console.warn('Could not refresh profile data:', e);
+        }
+    }
+
+    const activeVeh = (state.currentVehicles || []).find(v => String(v.idk) === String(targetIdk)) || { idk: targetIdk, tgl: state.selectedDate };
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    // Header Banner (Slate/Cyan Theme)
+    doc.setFillColor(15, 23, 42); // Slate 900
+    doc.rect(0, 0, 210, 26, 'F');
+
+    // Accent line
+    doc.setFillColor(6, 182, 212); // Cyan 500
+    doc.rect(0, 26, 210, 1.5, 'F');
+
+    // Header text
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('RADIATION PORTAL MONITOR (RPM) - CAS OPERATOR', 14, 11);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184); // Slate 400
+    doc.text('LAPORAN DETAIL PROFIL RADIASI KENDARAAN (OKUPASI NORMAL)', 14, 18);
+    doc.setFontSize(8);
+    doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')} | Status: VERIFIKASI PROFIL OKUPASI`, 14, 23);
+
+    const brinLogo = await getBrinLogoBase64();
+    if (brinLogo) {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(183, 3.5, 14, 19, 1, 1, 'F');
+        doc.addImage(brinLogo, 'PNG', 184, 4.5, 12, 17);
+    }
+
+    // Metadata Box
+    doc.setFillColor(241, 245, 249); // Slate 100
+    doc.roundedRect(14, 32, 182, 22, 2, 2, 'F');
+    doc.setDrawColor(203, 213, 225); // Slate 300
+    doc.roundedRect(14, 32, 182, 22, 2, 2, 'D');
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.text('IDK Kendaraan:', 18, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${targetIdk}`, 48, 38);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Waktu Lintasan:', 18, 44);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${activeVeh.tgl || state.selectedDate || '-'}`, 48, 44);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Pilar Monitoring:', 18, 50);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text('Pilar 115', 48, 50);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Status Evaluasi:', 105, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text('Lolos Pemeriksaan Radiasi (Normal)', 142, 38);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Database Aktif:', 105, 44);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${state.activeDb}`, 142, 44);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Titik Pengukuran:', 105, 50);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    const sampleCount = state.currentOkupasiProfileData?.table_data?.length || 0;
+    doc.text(`${sampleCount} Sampel (${sampleCount} Detik)`, 142, 50);
+
+    let startY = 58;
+
+    // Section 1: Snapshot Camera Image & Parameter Deteksi Box
+    const imgEl = document.getElementById('vehicle-snapshot-img');
+    const base64Img = await getImageBase64(imgEl, `/api/historis/snapshot/${targetIdk}`);
+
+    if (base64Img) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`FOTO SNAPSHOT KENDARAAN (IDK: ${targetIdk})`, 14, startY + 4);
+
+        try {
+            doc.addImage(base64Img, 'JPEG', 14, startY + 6, 68, 45);
+            doc.setDrawColor(15, 23, 42);
+            doc.rect(14, startY + 6, 68, 45, 'D');
+
+            doc.setFillColor(15, 23, 42);
+            doc.rect(14, startY + 51, 68, 5, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`CAM 01 • OKUPASI • ${targetIdk}`, 16, startY + 54.5);
+
+            doc.setFillColor(248, 250, 252);
+            doc.rect(86, startY + 6, 110, 50, 'F');
+            doc.setDrawColor(226, 232, 240);
+            doc.rect(86, startY + 6, 110, 50, 'D');
+
+            doc.setFontSize(8.5);
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Ringkasan Profil Radiasi Kendaraan', 90, startY + 12);
+
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(71, 85, 105);
+            doc.text(`Waktu Lintasan: ${activeVeh.tgl || state.selectedDate || '-'}`, 90, startY + 18);
+            doc.text(`Jumlah Titik Pengukuran: ${sampleCount} titik sampel`, 90, startY + 24);
+            doc.text(`Nilai Puncak A1: ${formatNumber(activeVeh.max_a1 || 0)} cps`, 90, startY + 30);
+            doc.text(`Nilai Puncak B1: ${formatNumber(activeVeh.max_b1 || 0)} cps`, 90, startY + 36);
+            doc.text('Keterangan: Lolos pemeriksaan radiasi (Normal)', 90, startY + 42);
+
+            startY += 62;
+        } catch (e) {
+            console.warn('Could not render vehicle snapshot to profile PDF:', e);
+            startY += 8;
+        }
+    }
+
+    // Section 2: Chart Profil Radiasi Kendaraan (Clean Publication Style)
+    const pData = state.currentOkupasiProfileData;
+    let chartData = pData?.chart_data;
+    if (!chartData && pData?.table_data && pData.table_data.length > 0) {
+        chartData = {
+            labels: pData.table_data.map((_, idx) => String(idx)),
+            profil_a1: pData.table_data.map(r => r.A1 ?? 0),
+            profil_a2: pData.table_data.map(r => r.A2 ?? 0),
+            profil_b1: pData.table_data.map(r => r.B1 ?? 0),
+            profil_b2: pData.table_data.map(r => r.B2 ?? 0),
+        };
+    }
+
+    if (chartData && chartData.labels && chartData.labels.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text('CHART PROFIL RADIASI KENDARAAN (DETEKTOR A1, A2, B1, B2)', 14, startY + 3);
+
+        try {
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = 1200;
+            offCanvas.height = 380;
+            const offCtx = offCanvas.getContext('2d');
+            offCtx.fillStyle = '#FFFFFF';
+            offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
+
+            const tempChart = new Chart(offCanvas, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: 'Detektor A1',
+                            data: chartData.profil_a1,
+                            borderColor: '#0284C7',
+                            backgroundColor: '#0284C7',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#0284C7'
+                        },
+                        {
+                            label: 'Detektor A2',
+                            data: chartData.profil_a2,
+                            borderColor: '#16A34A',
+                            backgroundColor: '#16A34A',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#16A34A'
+                        },
+                        {
+                            label: 'Detektor B1',
+                            data: chartData.profil_b1,
+                            borderColor: '#D97706',
+                            backgroundColor: '#D97706',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#D97706'
+                        },
+                        {
+                            label: 'Detektor B2',
+                            data: chartData.profil_b2,
+                            borderColor: '#E11D48',
+                            backgroundColor: '#E11D48',
+                            borderWidth: 2.5,
+                            tension: 0.1,
+                            pointRadius: chartData.labels.length > 30 ? 0 : 3,
+                            pointBackgroundColor: '#E11D48'
+                        }
+                    ]
+                },
+                options: {
+                    animation: false,
+                    responsive: false,
+                    devicePixelRatio: 1,
+                    layout: {
+                        padding: { top: 10, right: 25, bottom: 10, left: 15 }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'center',
+                            labels: {
+                                color: '#1E293B',
+                                font: { family: 'Helvetica', size: 12, weight: 'bold' },
+                                boxWidth: 15,
+                                boxHeight: 12,
+                                padding: 16,
+                                usePointStyle: true,
+                                pointStyle: 'rectRounded'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Waktu Relatif / Detik (s)',
+                                color: '#475569',
+                                font: { family: 'Helvetica', size: 11, weight: 'bold' }
+                            },
+                            grid: { color: '#E2E8F0', lineWidth: 1 },
+                            ticks: { color: '#475569', font: { family: 'Helvetica', size: 10 } },
+                            border: { color: '#CBD5E1' }
+                        },
+                        y: {
+                            min: 0,
+                            title: {
+                                display: true,
+                                text: 'Laju Cacah Radiasi (cps)',
+                                color: '#475569',
+                                font: { family: 'Helvetica', size: 11, weight: 'bold' }
+                            },
+                            grid: { color: '#E2E8F0', lineWidth: 1 },
+                            ticks: { color: '#475569', font: { family: 'Helvetica', size: 10 } },
+                            border: { color: '#CBD5E1' }
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'chartWhiteBackgroundPlugin',
+                    beforeDraw: (c) => {
+                        const cctx = c.ctx;
+                        cctx.save();
+                        cctx.fillStyle = '#FFFFFF';
+                        cctx.fillRect(0, 0, c.width, c.height);
+                        cctx.restore();
+                    }
+                }]
+            });
+
+            const chartDataUrl = offCanvas.toDataURL('image/png');
+            tempChart.destroy();
+
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(14, startY + 6, 182, 58, 2, 2, 'F');
+            doc.setDrawColor(226, 232, 240);
+            doc.roundedRect(14, startY + 6, 182, 58, 2, 2, 'D');
+
+            doc.addImage(chartDataUrl, 'PNG', 14.5, startY + 6.5, 181, 57);
+            startY += 68;
+        } catch (err) {
+            console.warn('Could not render chart to profile PDF:', err);
+            startY += 8;
+        }
+    }
+
+    // Section 3: Tabel Detail Data Profil Sensor Okupasi Per Detik
     if (state.currentOkupasiProfileData && state.currentOkupasiProfileData.table_data && state.currentOkupasiProfileData.table_data.length > 0) {
-        let nextY = doc.lastAutoTable.finalY + 8;
-        if (nextY > 250) {
+        if (startY > 210) {
             doc.addPage();
-            nextY = 20;
+            startY = 20;
         }
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(15, 23, 42);
-        doc.text(`DETAIL DATA PROFIL SENSOR PER DETIK (IDK: ${state.selectedIdk})`, 14, nextY);
+        doc.text(`TABEL DETAIL DATA PROFIL SENSOR OKUPASI PER DETIK (IDK: ${targetIdk})`, 14, startY);
 
         const profileTableData = state.currentOkupasiProfileData.table_data.map((r, i) => [
             i + 1,
-            r.IDK || state.selectedIdk,
+            r.IDK || targetIdk,
             r.TANGGAL,
             formatNumber(r.A1),
             formatNumber(r.A2),
@@ -1863,8 +2245,8 @@ async function exportOkupasiDataPDF() {
         ]);
 
         doc.autoTable({
-            startY: nextY + 3,
-            head: [['No', 'IDK', 'Waktu', 'A1 (cps)', 'A2 (cps)', 'B1 (cps)', 'B2 (cps)', 'Latar A1', 'Latar A2']],
+            startY: startY + 3,
+            head: [['No', 'IDK', 'Waktu', 'Det A1 (cps)', 'Det A2 (cps)', 'Det B1 (cps)', 'Det B2 (cps)', 'Latar A1', 'Latar A2']],
             body: profileTableData,
             theme: 'grid',
             styles: { fontSize: 7, cellPadding: 1.2, font: 'helvetica' },
@@ -1874,19 +2256,39 @@ async function exportOkupasiDataPDF() {
     }
 
     const totalPages = doc.internal.getNumberOfPages();
+    const now = new Date();
+    const printDateStr = now.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    }) + ', ' + now.toLocaleTimeString('id-ID');
+
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
+
+        // Bottom divider line
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.setLineWidth(0.3);
+        doc.line(14, 286, 196, 286);
+
         doc.setFontSize(7.5);
-        doc.setTextColor(148, 163, 184);
-        doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan RPM Web CAS Operator`, 14, 290);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184); // Slate 400
+        doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan Okupasi RPM CAS Operator`, 14, 290);
+
+        if (i === totalPages) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(8, 145, 178); // Cyan 600
+            doc.text(`Tanggal Cetak: ${printDateStr}`, 196, 290, { align: 'right' });
+        }
     }
 
-    doc.save(`Laporan_Historis_Okupasi_${state.selectedDate}.pdf`);
-    showToast('Berhasil mengunduh Laporan PDF Historis Okupasi!', 'success');
+    doc.save(`Laporan_Profil_Okupasi_${targetIdk}.pdf`);
+    showToast(`Berhasil mengunduh Laporan PDF Profil Okupasi ${targetIdk}!`, 'success');
 }
-window.exportOkupasiDataPDF = exportOkupasiDataPDF;
+window.exportOkupasiProfilePDF = exportOkupasiProfilePDF;
 
-// Export alarm records to PDF (jsPDF + autoTable)
+// Export alarm records to PDF (jsPDF + autoTable) - Per Tanggal Terpilih
 async function exportAlarmDataPDF() {
     if (!window.jspdf || !window.jspdf.jsPDF) {
         showToast('Library jsPDF sedang dimuat, coba sesaat lagi...', 'warning');
@@ -1895,9 +2297,35 @@ async function exportAlarmDataPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    showToast('Menyiapkan dokumen PDF Historis Alarm Radiasi...', 'info');
+    const defaultDateStr = (state.activeDb === 'rpm.db') ? '2025-11-29' : '2025-11-14';
+    const alarmDate = state.alarmSelectedDate || defaultDateStr;
 
-    const alarmDate = state.alarmSelectedDate || '2025-11-14';
+    showToast(`Menyiapkan dokumen PDF Historis Alarm Radiasi tanggal ${alarmDate}...`, 'info');
+
+    // 1. Ensure alarmVehicles are loaded for alarmDate
+    if (!state.alarmVehicles || !state.alarmVehicles.length) {
+        try {
+            const resVeh = await fetch(apiUrl(`/api/historis/alarm-vehicles?date=${alarmDate}`));
+            const jsonVeh = await resVeh.json();
+            if (jsonVeh.status === 'success' && jsonVeh.data && jsonVeh.data.length > 0) {
+                state.alarmVehicles = jsonVeh.data;
+            }
+        } catch (eVeh) {
+            console.warn('Could not prefetch alarmVehicles for PDF:', eVeh);
+        }
+    }
+
+    // 2. Fetch sensor profile rows ONLY for the selected alarmDate
+    let alarmSensorRows = [];
+    try {
+        const resSens = await fetch(apiUrl(`/api/dashboard/alarms?limit=0&date=${alarmDate}`));
+        const jsonSens = await resSens.json();
+        if (jsonSens.status === 'success' && Array.isArray(jsonSens.data)) {
+            alarmSensorRows = jsonSens.data;
+        }
+    } catch (eSens) {
+        console.warn('Could not fetch alarm sensor data for date:', eSens);
+    }
 
     // Header Banner (Rose/Red Alarm Theme)
     doc.setFillColor(159, 18, 57); // Rose 900
@@ -1932,9 +2360,6 @@ async function exportAlarmDataPDF() {
     doc.setDrawColor(254, 205, 211);
     doc.roundedRect(14, 32, 182, 22, 2, 2, 'D');
 
-    const targetIdk = state.selectedAlarmIdk || (state.alarmVehicles && state.alarmVehicles.length ? state.alarmVehicles[0].idk : null);
-    const activeAlarm = (state.alarmVehicles || []).find(v => String(v.idk) === String(targetIdk)) || {};
-
     doc.setFontSize(8.5);
     doc.setTextColor(159, 18, 57);
     doc.setFont('helvetica', 'bold');
@@ -1959,84 +2384,160 @@ async function exportAlarmDataPDF() {
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
-    doc.text('IDK Alarm Terpilih:', 105, 38);
+    doc.text('Status Verifikasi:', 105, 38);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${targetIdk || '-'}`, 140, 38);
+    doc.text('Verifikasi Operator Portal', 140, 38);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
     doc.text('Pilar Monitoring:', 105, 44);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(`Pilar ${activeAlarm.pilar || '115 & Pilar 116'}`, 140, 44);
+    doc.text('Pilar 115 & Pilar 116', 140, 44);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(159, 18, 57);
-    doc.text('Kamera Snapshot:', 105, 50);
+    doc.text('Titik Rekaman:', 105, 50);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text('Portal Camera 01 (Snapshot Terintegrasi)', 140, 50);
+    doc.text(`${alarmSensorRows.length} Titik Sensor Alarm`, 140, 50);
 
-    // Prefetch detail sensor profile for targetIdk if needed
-    if (targetIdk && (!state.currentAlarmProfileData || String(state.currentAlarmProfileData.idk) !== String(targetIdk))) {
-        try {
-            const res = await fetch(apiUrl(`/api/historis/profile/${targetIdk}`));
-            const json = await res.json();
-            if (json.status === 'success') {
-                state.currentAlarmProfileData = json.data;
+    // Section 1: Table of Alarm Vehicles for this date with photo on EVERY row
+    let startY = 58;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(159, 18, 57);
+    doc.text(`DAFTAR SELURUH EVENT KENDARAAN ALARM PADA TANGGAL ${alarmDate} (${state.alarmVehicles?.length || 0} TOTAL)`, 14, startY);
+
+    // Fetch batch thumbnails for all alarm vehicles
+    showToast(`Memuat foto kendaraan alarm (${state.alarmVehicles?.length || 0})...`, 'info');
+    const alarmIdks = (state.alarmVehicles || []).map(v => v.idk);
+    const alarmThumbMap = await loadSnapshotThumbnails(alarmIdks, (done, total) => {
+        showToast(`Memuat foto kendaraan alarm (${done}/${total})...`, 'info');
+    });
+
+    const alarmVehiclesTableData = (state.alarmVehicles || []).map(v => [
+        v.no,
+        '', // Cell for vehicle photo thumbnail
+        v.idk,
+        v.tgl,
+        `Pilar ${v.pilar || '115'}`,
+        v.jenis || 'Alarm Gamma',
+        formatNumber(v.max_a1 || 0),
+        formatNumber(v.max_b1 || 0)
+    ]);
+
+    doc.autoTable({
+        startY: startY + 3,
+        head: [['No', 'Foto Snapshot', 'IDK Alarm', 'Waktu Kejadian', 'Pilar', 'Jenis Alarm', 'Max A1 (cps)', 'Max B1 (cps)']],
+        body: alarmVehiclesTableData.length > 0 ? alarmVehiclesTableData : [['-', '-', '-', `Tidak ada event alarm pada tanggal ${alarmDate}`, '-', '-', '-', '-']],
+        theme: 'striped',
+        styles: { fontSize: 7.5, cellPadding: 1.5, minCellHeight: 14, valign: 'middle', font: 'helvetica' },
+        headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+        columnStyles: {
+            0: { halign: 'center', cellWidth: 10, valign: 'middle' },
+            1: { halign: 'center', cellWidth: 24, valign: 'middle' },
+            2: { fontStyle: 'bold', cellWidth: 28, valign: 'middle' },
+            3: { cellWidth: 36, valign: 'middle' },
+            4: { halign: 'center', cellWidth: 18, valign: 'middle' },
+            5: { cellWidth: 26, valign: 'middle' },
+            6: { halign: 'right', cellWidth: 20, valign: 'middle' },
+            7: { halign: 'right', cellWidth: 20, valign: 'middle' }
+        },
+        margin: { left: 14, right: 14 },
+        didDrawCell: function (data) {
+            if (data.section === 'body' && data.column.index === 1) {
+                const rowIdk = data.row.raw[2];
+                const imgBase64 = alarmThumbMap.get(String(rowIdk));
+                if (imgBase64) {
+                    try {
+                        doc.addImage(imgBase64, 'JPEG', data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5);
+                        doc.setDrawColor(254, 205, 211);
+                        doc.rect(data.cell.x + 2.5, data.cell.y + 1.25, 19, 11.5, 'D');
+                    } catch (err) {
+                        console.warn('PDF addImage error:', err);
+                    }
+                }
             }
-        } catch (e) {
-            console.warn('Could not prefetch profile data for overall PDF:', e);
+        }
+    });
+
+    // Section 2: Detail Data Profil Sensor Alarm (Per Tanggal Terpilih)
+    let nextY = doc.lastAutoTable.finalY + 8;
+    if (nextY > 240) {
+        doc.addPage();
+        nextY = 20;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(159, 18, 57);
+    doc.text(`DETAIL DATA PROFIL SENSOR ALARM PER DETIK (TANGGAL ${alarmDate}: ${alarmSensorRows.length.toLocaleString('id-ID')} REKAMAN)`, 14, nextY);
+
+    const profileTableData = alarmSensorRows.map((r, i) => {
+        let latar1 = r.latarA1;
+        let latar2 = r.latarA2;
+        if ((latar1 === undefined || latar2 === undefined) && r.latar && typeof r.latar === 'string' && r.latar.includes('/')) {
+            const parts = r.latar.split('/');
+            latar1 = parseInt(parts[0].trim(), 10) || 1095;
+            latar2 = parseInt(parts[1].trim(), 10) || 989;
+        }
+        return [
+            i + 1,
+            r.idk || '-',
+            r.waktu || '-',
+            formatNumber(r.raw_a1 ?? (r.a1 === 'ON' ? 2000 : r.a1) ?? 0),
+            formatNumber(r.raw_a2 ?? (r.a2 === 'ON' ? 2000 : r.a2) ?? 0),
+            formatNumber(r.raw_b1 ?? (r.b1 === 'ON' ? 2000 : r.b1) ?? 0),
+            formatNumber(r.raw_b2 ?? (r.b2 === 'ON' ? 2000 : r.b2) ?? 0),
+            formatNumber(latar1 ?? 1095),
+            formatNumber(latar2 ?? 989)
+        ];
+    });
+
+    doc.autoTable({
+        startY: nextY + 3,
+        head: [['No', 'IDK', 'Waktu', 'Det A1 (cps)', 'Det A2 (cps)', 'Det B1 (cps)', 'Det B2 (cps)', 'Latar A1', 'Latar A2']],
+        body: profileTableData.length > 0 ? profileTableData : [['-', '-', '-', `Tidak ada rekaman data sensor alarm pada tanggal ${alarmDate}`, '-', '-', '-', '-', '-']],
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 1.2, font: 'helvetica' },
+        headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold' },
+        margin: { left: 14, right: 14 }
+    });
+
+    // Page numbering and footer with print date on the final page
+    const totalPages = doc.internal.getNumberOfPages();
+    const now = new Date();
+    const printDateStr = now.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    }) + ', ' + now.toLocaleTimeString('id-ID');
+
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+
+        // Bottom divider line
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.setLineWidth(0.3);
+        doc.line(14, 286, 196, 286);
+
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184); // Slate 400
+        doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan Alarm Radiasi RPM CAS Operator`, 14, 290);
+
+        // Khusus halaman akhir: tambahkan tanggal cetak di bottom header (footer) sebelah kanan
+        if (i === totalPages) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(159, 18, 57); // Rose 900
+            doc.text(`Tanggal Cetak: ${printDateStr}`, 196, 290, { align: 'right' });
         }
     }
 
-    // Section 1: Detail Data Profil Sensor Alarm Kendaraan Terpilih (Langsung dimulai dari sini)
-    let startY = 60;
-    if (state.currentAlarmProfileData && state.currentAlarmProfileData.table_data && state.currentAlarmProfileData.table_data.length > 0) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(159, 18, 57);
-        doc.text(`DETAIL DATA PROFIL SENSOR ALARM PER DETIK (IDK: ${targetIdk || '-'})`, 14, startY);
-
-        const profileTableData = state.currentAlarmProfileData.table_data.map((r, i) => [
-            i + 1,
-            r.IDK || targetIdk || '-',
-            r.TANGGAL,
-            formatNumber(r.A1),
-            formatNumber(r.A2),
-            formatNumber(r.B1),
-            formatNumber(r.B2),
-            formatNumber(r.latarA1),
-            formatNumber(r.latarA2)
-        ]);
-
-        doc.autoTable({
-            startY: startY + 3,
-            head: [['No', 'IDK', 'Waktu', 'Det A1 (cps)', 'Det A2 (cps)', 'Det B1 (cps)', 'Det B2 (cps)', 'Latar A1', 'Latar A2']],
-            body: profileTableData,
-            theme: 'grid',
-            styles: { fontSize: 7, cellPadding: 1.2, font: 'helvetica' },
-            headStyles: { fillColor: [159, 18, 57], textColor: [255, 255, 255], fontStyle: 'bold' },
-            margin: { left: 14, right: 14 }
-        });
-    } else {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        doc.setTextColor(100, 116, 139);
-        doc.text('Pilih kendaraan alarm dari daftar untuk menampilkan detail data profil sensor per detik.', 14, startY + 6);
-    }
-
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(7.5);
-        doc.setTextColor(148, 163, 184);
-        doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan Alarm Radiasi RPM CAS Operator`, 14, 290);
-    }
-
-    doc.save(`Laporan_Historis_Alarm_${alarmDate}.pdf`);
-    showToast('Berhasil mengunduh Laporan PDF Historis Alarm!', 'success');
+    doc.save(`Laporan_Historis_Alarm_${alarmDate}_Keseluruhan.pdf`);
+    showToast('Berhasil mengunduh Laporan PDF Historis Alarm Keseluruhan!', 'success');
 }
 window.exportAlarmDataPDF = exportAlarmDataPDF;
 
@@ -2154,7 +2655,7 @@ async function exportAlarmProfilePDF() {
 
     let startY = 58;
 
-    // Section 1: Snapshot Camera Image (Alarm) & Parameter Deteksi Box (Moved here!)
+    // Section 1: Snapshot Camera Image (Alarm) & Parameter Deteksi Box
     const imgEl = document.getElementById('alarm-vehicle-snapshot-img');
     const base64Img = await getImageBase64(imgEl, `/api/historis/snapshot/${targetIdk}`);
 
@@ -2222,7 +2723,6 @@ async function exportAlarmProfilePDF() {
         doc.text('CHART PROFIL RADIASI ALARM KENDARAAN (DETEKTOR A1, A2, B1, B2)', 14, startY + 3);
 
         try {
-            // Render high-resolution publication-quality clean light chart matching table aesthetics
             const offCanvas = document.createElement('canvas');
             offCanvas.width = 1200;
             offCanvas.height = 380;
@@ -2391,11 +2891,32 @@ async function exportAlarmProfilePDF() {
     }
 
     const totalPages = doc.internal.getNumberOfPages();
+    const now = new Date();
+    const printDateStr = now.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    }) + ', ' + now.toLocaleTimeString('id-ID');
+
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
+
+        // Bottom divider line
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.setLineWidth(0.3);
+        doc.line(14, 286, 196, 286);
+
         doc.setFontSize(7.5);
-        doc.setTextColor(148, 163, 184);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184); // Slate 400
         doc.text(`Halaman ${i} dari ${totalPages} | Sistem Pemantauan Alarm Radiasi RPM CAS Operator`, 14, 290);
+
+        // Khusus halaman akhir: tambahkan tanggal cetak di bottom header (footer) sebelah kanan
+        if (i === totalPages) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(159, 18, 57); // Rose 900
+            doc.text(`Tanggal Cetak: ${printDateStr}`, 196, 290, { align: 'right' });
+        }
     }
 
     doc.save(`Laporan_Profil_Alarm_${targetIdk}.pdf`);
@@ -2452,11 +2973,35 @@ async function loadAlarmVehicles(dateStr) {
             selectAlarmVehicle(state.selectedAlarmIdk, activeItem);
         } else {
             state.alarmVehicles = [];
+            state.selectedAlarmIdk = null;
+            state.currentAlarmProfileData = null;
             if (countBadge) countBadge.textContent = '0 Alarm';
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-500">Tidak ada data alarm pada tanggal ${dateStr} di ${state.activeDb}.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-500 font-sans">Tidak ada event alarm pada tanggal ${dateStr} di database ${state.activeDb}.</td></tr>`;
             const profileTbody = document.getElementById('alarm-profile-grid-tbody');
             if (profileTbody) {
-                profileTbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500">Pilih kendaraan alarm untuk menampilkan grid profile.</td></tr>';
+                profileTbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500 font-sans">Tidak ada data profil sensor alarm untuk tanggal ini.</td></tr>';
+            }
+            if (state.charts.alarmProfile) {
+                state.charts.alarmProfile.destroy();
+                state.charts.alarmProfile = null;
+            }
+            const imgEl = document.getElementById('alarm-vehicle-snapshot-img');
+            if (imgEl) {
+                imgEl.src = '/images/no-vehicle-snapshot.jpg';
+            }
+            const badgeEl = document.getElementById('alarm-snapshot-pilar-badge');
+            if (badgeEl) badgeEl.textContent = 'Tidak Ada Alarm';
+            const timeOverlay = document.getElementById('alarm-snapshot-overlay');
+            if (timeOverlay) {
+                timeOverlay.textContent = 'Tidak Ada Event Alarm';
+            }
+            const idkOverlay = document.getElementById('alarm-snapshot-idk-overlay');
+            if (idkOverlay) {
+                idkOverlay.textContent = 'IDK: -';
+            }
+            const activeIdkBadge = document.getElementById('alarm-profile-active-idk-badge');
+            if (activeIdkBadge) {
+                activeIdkBadge.textContent = 'Tidak Ada Data';
             }
         }
     } catch (e) {
@@ -2763,12 +3308,26 @@ async function loadHistorisVehicles(dateStr) {
             selectHistorisVehicle(state.selectedIdk);
         } else {
             state.currentVehicles = [];
+            state.selectedIdk = null;
+            state.currentOkupasiProfileData = null;
             const countBadge = document.getElementById('historis-vehicle-count');
             if (countBadge) countBadge.textContent = '0 Kendaraan';
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-500">Tidak ada data kendaraan pada tanggal ini di ${state.activeDb}.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-500 font-sans">Tidak ada data kendaraan pada tanggal ini di database ${state.activeDb}.</td></tr>`;
             const profileTbody = document.getElementById('profile-grid-tbody') || document.getElementById('profile-detail-tbody');
             if (profileTbody) {
-                profileTbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500">Pilih kendaraan untuk menampilkan grid profile.</td></tr>';
+                profileTbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500 font-sans">Tidak ada data profil sensor untuk tanggal ini.</td></tr>';
+            }
+            if (state.charts.profile) {
+                state.charts.profile.destroy();
+                state.charts.profile = null;
+            }
+            const imgEl = document.getElementById('vehicle-snapshot-img');
+            if (imgEl) {
+                imgEl.src = '/images/no-vehicle-snapshot.jpg';
+            }
+            const imgBannerTime = document.getElementById('camera-timestamp-overlay');
+            if (imgBannerTime) {
+                imgBannerTime.textContent = 'Tidak Ada Snapshot Kendaraan';
             }
         }
     } catch (e) {
@@ -2913,16 +3472,17 @@ async function loadHistorisProfile(idk) {
 // DATABASE SWITCHER & SELECTION (Multi-tab Synchronized)
 // ==========================================
 function initDatabaseSwitcher() {
-    const savedDb = localStorage.getItem('rpm_active_db');
     const dbSelect = document.getElementById('db-selector-dropdown');
-    if (savedDb) {
-        state.activeDb = savedDb;
-        if (dbSelect) dbSelect.value = savedDb;
-        const dbBadge = document.getElementById('active-db-label');
-        if (dbBadge) dbBadge.textContent = savedDb;
-        const alarmDbBadge = document.getElementById('alarm-active-db-badge');
-        if (alarmDbBadge) alarmDbBadge.textContent = savedDb;
-    }
+    const savedDb = localStorage.getItem('rpm_active_db');
+    const effectiveDb = savedDb || (dbSelect ? dbSelect.value : null) || 'rpm_1.db';
+
+    state.activeDb = effectiveDb;
+    if (dbSelect) dbSelect.value = effectiveDb;
+    const dbBadge = document.getElementById('active-db-label');
+    if (dbBadge) dbBadge.textContent = effectiveDb;
+    const alarmDbBadge = document.getElementById('alarm-active-db-badge');
+    if (alarmDbBadge) alarmDbBadge.textContent = effectiveDb;
+
     if (dbSelect) {
         dbSelect.addEventListener('change', (e) => {
             switchDatabase(e.target.value);
@@ -2948,6 +3508,11 @@ async function switchDatabase(chosenDb) {
             handleServerConnectionSuccess();
             state.activeDb = json.active_db;
             localStorage.setItem('rpm_active_db', json.active_db);
+            
+            // Clear in-memory caches to prevent database mixing
+            state.allAlarms = [];
+            state.alarmVehicles = [];
+            state.selectedAlarmIdk = null;
             
             // Sync all UI headers & badges
             const dbBadge = document.getElementById('active-db-label');
@@ -3005,28 +3570,45 @@ async function loadSystemStatus() {
                 let dbsHtml = '';
                 data.databases.forEach(db => {
                     const isAct = db.is_active;
+                    const isAvail = db.status.includes('Tersedia');
+                    // CSV download buttons for each table in this database (only if available)
+                    const csvButtons = isAvail ? `
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="text-[10px] text-slate-500 mr-0.5">Unduh CSV:</span>
+                            ${['tblOkupasi','tblAlarm','tblLog','tbllatar'].map(tbl => `
+                            <a href="/api/system/download-csv?db=${encodeURIComponent(db.name)}&table=${tbl}" 
+                               download
+                               title="Unduh ${tbl} dari ${db.name} sebagai CSV (max 50.000 baris)"
+                               class="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 rounded text-[10px] font-mono font-semibold transition-all flex items-center gap-1 cursor-pointer">
+                                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                ${tbl}
+                            </a>`).join('')}
+                        </div>` : '';
                     dbsHtml += `
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 px-3.5 border-b border-slate-800 text-sm hover:bg-slate-900/60 rounded-lg transition-all mb-1">
-                            <div class="flex items-center gap-2.5 flex-wrap">
-                                <span class="font-mono font-bold ${isAct ? 'text-cyan-400' : 'text-slate-200'} text-sm">${db.name}</span>
-                                <span class="text-xs text-slate-500 font-mono">(${db.size_mb} MB)</span>
-                                <span class="text-[11px] text-slate-500 font-mono hidden md:inline">• Terakhir Diperbarui: ${db.last_modified}</span>
-                                ${isAct ? '<span class="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-[10px] font-bold tracking-wider">DATABASE AKTIF</span>' : ''}
+                        <div class="flex flex-col gap-2 py-3 px-3.5 border-b border-slate-800 hover:bg-slate-900/60 rounded-lg transition-all mb-1">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2.5 flex-wrap">
+                                    <span class="font-mono font-bold ${isAct ? 'text-cyan-400' : 'text-slate-200'} text-sm">${db.name}</span>
+                                    <span class="text-xs text-slate-500 font-mono">(${db.size_mb} MB)</span>
+                                    <span class="text-[11px] text-slate-500 font-mono hidden md:inline">• Terakhir Diperbarui: ${db.last_modified}</span>
+                                    ${isAct ? '<span class="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-[10px] font-bold tracking-wider">DATABASE AKTIF</span>' : ''}
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs ${isAvail ? 'text-emerald-400' : 'text-rose-400'} font-medium">${db.status}</span>
+                                    ${isAct ? `
+                                        <span class="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg flex items-center gap-1">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Sedang Digunakan
+                                        </span>
+                                    ` : (isAvail ? `
+                                        <button type="button" onclick="window.switchDatabase('${db.name}')" 
+                                                class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-cyan-600/20 transition-all flex items-center gap-1.5 cursor-pointer">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            Pilih Database Ini
+                                        </button>
+                                    ` : '')}
+                                </div>
                             </div>
-                            <div class="flex items-center gap-3 mt-2 sm:mt-0">
-                                <span class="text-xs ${db.status.includes('Tersedia') ? 'text-emerald-400' : 'text-rose-400'} font-medium">${db.status}</span>
-                                ${isAct ? `
-                                    <span class="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg flex items-center gap-1">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Sedang Digunakan
-                                    </span>
-                                ` : `
-                                    <button type="button" onclick="window.switchDatabase('${db.name}')" 
-                                            class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-cyan-600/20 transition-all flex items-center gap-1.5 cursor-pointer">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                        Pilih Database Ini
-                                    </button>
-                                `}
-                            </div>
+                            ${csvButtons}
                         </div>
                     `;
                 });
@@ -3074,7 +3656,8 @@ async function loadSystemStatus() {
                 `;
             }
 
-            renderActivityLogsTable();
+            // Load shared server-side activity logs (visible across all user sessions)
+            fetchAndRenderActivityLogs();
         }
     } catch (e) {
         console.error('Error loading system status:', e);
@@ -3082,81 +3665,24 @@ async function loadSystemStatus() {
     }
 }
 
-// ==========================================
-// LOG AKTIVITAS AKSES WEB & SISTEM
-// ==========================================
-function getActivityLogs() {
+// =================================================================
+// LOG AKTIVITAS AKSES WEB & SISTEM (SERVER-SIDE SHARED LOG)
+// =================================================================
+async function fetchAndRenderActivityLogs() {
     try {
-        const stored = localStorage.getItem('rpm_system_activity_logs');
-        if (stored) return JSON.parse(stored);
-    } catch (e) {}
-
-    // Seed realistic initial logs if empty
-    const now = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-
-    const initLogs = [
-        {
-            id: 'init_1',
-            time: fmt(new Date(now.getTime() - 7200000)),
-            type: 'SERVER',
-            user: 'Sistem Monitoring',
-            status: 'Sukses',
-            detail: 'Server web online dan terhubung ke direktori D:\\CAS_OPERATOR (Mode Read-Only)'
-        },
-        {
-            id: 'init_2',
-            time: fmt(new Date(now.getTime() - 7100000)),
-            type: 'DB',
-            user: 'Sistem Monitoring',
-            status: 'Sukses',
-            detail: 'Database awal termuat: rpm_1.db (2.031.348 data okupasi terverifikasi)'
-        },
-        {
-            id: 'init_3',
-            time: fmt(new Date(now.getTime() - 1800000)),
-            type: 'AUTH',
-            user: 'operator@rpm.internal',
-            status: 'Sukses',
-            detail: 'Pengguna masuk sesi (Demo Mode / Operator CAS)'
+        const res = await fetch('/api/system/activity-logs');
+        const json = await res.json();
+        if (json.status === 'success') {
+            renderActivityLogsTable(json.data || []);
         }
-    ];
-    localStorage.setItem('rpm_system_activity_logs', JSON.stringify(initLogs));
-    return initLogs;
+    } catch (e) {
+        // Fallback: use localStorage if server is unreachable
+        const stored = localStorage.getItem('rpm_system_activity_logs');
+        const fallbackLogs = stored ? JSON.parse(stored) : [];
+        renderActivityLogsTable(fallbackLogs);
+    }
 }
 
-window.logSystemActivity = function(type, user, status, detail) {
-    try {
-        const logs = getActivityLogs();
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-        logs.unshift({
-            id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-            time: timeStr,
-            type: type, // 'AUTH', 'SERVER', 'DB'
-            user: user || 'Operator',
-            status: status || 'Sukses', // 'Sukses', 'Error', 'Peringatan', 'Info'
-            detail: detail || '-'
-        });
-
-        if (logs.length > 150) logs.length = 150;
-        localStorage.setItem('rpm_system_activity_logs', JSON.stringify(logs));
-        renderActivityLogsTable();
-    } catch(e) {
-        console.error('Error logging system activity:', e);
-    }
-};
-
-window.clearActivityLogs = function() {
-    if (confirm('Bersihkan semua catatan riwayat aktivitas akses dan sistem?')) {
-        localStorage.removeItem('rpm_system_activity_logs');
-        renderActivityLogsTable();
-        showToast('Riwayat aktivitas telah dibersihkan', 'info');
-    }
-};
 
 let activeActivityFilter = 'all';
 
@@ -3170,16 +3696,62 @@ function initActivityLogFilters() {
             });
             btn.classList.add('text-cyan-400', 'bg-slate-800', 'font-semibold');
             btn.classList.remove('text-slate-400');
-            renderActivityLogsTable();
+            // Re-fetch and re-render with current filter
+            fetchAndRenderActivityLogs();
         });
     });
 }
 
-function renderActivityLogsTable() {
+// Log activity to the shared server-side store so all users can see it
+window.logSystemActivity = function(type, user, status, detail) {
+    fetch('/api/system/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ type, user, status, detail })
+    }).catch(() => {
+        // Silent fail – write to localStorage as backup
+        try {
+            const stored = localStorage.getItem('rpm_system_activity_logs');
+            const logs = stored ? JSON.parse(stored) : [];
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            logs.unshift({ id: 'log_' + Date.now(), time: timeStr, type, user: user||'Operator', status: status||'Sukses', detail: detail||'-' });
+            if (logs.length > 150) logs.length = 150;
+            localStorage.setItem('rpm_system_activity_logs', JSON.stringify(logs));
+        } catch(e) {}
+    });
+};
+
+window.clearActivityLogs = function() {
+    if (confirm('Bersihkan semua catatan riwayat aktivitas akses dan sistem?')) {
+        fetch('/api/system/activity-logs', {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json' }
+        }).then(() => {
+            localStorage.removeItem('rpm_system_activity_logs');
+            renderActivityLogsTable([]);
+            showToast('Riwayat aktivitas telah dibersihkan', 'info');
+        }).catch(() => {
+            localStorage.removeItem('rpm_system_activity_logs');
+            renderActivityLogsTable([]);
+            showToast('Riwayat aktivitas lokal dibersihkan', 'info');
+        });
+    }
+};
+
+function renderActivityLogsTable(logsInput) {
+
     const tbody = document.getElementById('table-activity-logs-tbody');
     if (!tbody) return;
 
-    let logs = getActivityLogs();
+    let logs = logsInput;
+    if (!logs) {
+        // Called without args: try fetching from server async
+        fetchAndRenderActivityLogs();
+        return;
+    }
+
     if (activeActivityFilter !== 'all') {
         logs = logs.filter(l => l.type === activeActivityFilter);
     }
@@ -3237,7 +3809,7 @@ function handleServerConnectionError(e) {
     if (isServerConnected) {
         isServerConnected = false;
         if (typeof window.logSystemActivity === 'function') {
-            window.logSystemActivity('SERVER', 'Server / Jaringan', 'Error', 'Koneksi ke backend server (http://127.0.0.1:5000) terputus atau tidak merespons');
+            window.logSystemActivity('SERVER', 'Server / Jaringan', 'Error', 'Koneksi ke backend server terputus atau tidak merespons');
         }
         showToast('Koneksi server terputus! Mencoba memulihkan...', 'error');
     }

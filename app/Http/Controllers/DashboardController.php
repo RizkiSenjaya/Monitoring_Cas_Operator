@@ -33,7 +33,8 @@ class DashboardController extends Controller
     public function alarms(Request $request): JsonResponse
     {
         $limit = (int)$request->query('limit', 0);
-        $alarms = $this->rpmService->getRecentAlarms($limit);
+        $date = $request->query('date');
+        $alarms = $this->rpmService->getRecentAlarms($limit, $date);
         return response()->json([
             'status' => 'success',
             'total' => count($alarms),

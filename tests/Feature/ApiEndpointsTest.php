@@ -96,5 +96,48 @@ class ApiEndpointsTest extends TestCase
                      'thumbnails'
                  ]);
     }
+
+    public function test_dashboard_alarms_with_date_filter(): void
+    {
+        $response = $this->getJson('/api/dashboard/alarms?limit=0&date=2025-11-14');
+        $response->assertStatus(200)
+                 ->assertJsonStructure([
+                     'status',
+                     'data',
+                     'total',
+                 ]);
+    }
+
+    public function test_historis_sensor_points_endpoint(): void
+    {
+        $response = $this->getJson('/api/historis/sensor-points?date=2025-11-14&limit=50');
+        $response->assertStatus(200)
+                 ->assertJsonStructure([
+                     'status',
+                     'date',
+                     'count',
+                     'data',
+                 ]);
+    }
+
+    public function test_historis_empty_date_returns_zero_data(): void
+    {
+        // 2025-11-30 has no records in any database
+        $response = $this->getJson('/api/historis/vehicles?date=2025-11-30');
+        $response->assertStatus(200)
+                 ->assertJson([
+                     'status' => 'success',
+                     'total' => 0,
+                     'data' => [],
+                 ]);
+
+        $alarmResponse = $this->getJson('/api/historis/alarm-vehicles?date=2025-11-30');
+        $alarmResponse->assertStatus(200)
+                      ->assertJson([
+                          'status' => 'success',
+                          'total' => 0,
+                          'data' => [],
+                      ]);
+    }
 }
 
